@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.streamlit/
+.venv/
+.tmp/
+.pip-cache/
+.deps/
+faiss_index/
+data/*.pdf
