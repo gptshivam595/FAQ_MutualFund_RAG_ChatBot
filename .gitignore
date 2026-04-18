@@ -6,4 +6,3 @@ __pycache__/
 .pip-cache/
 .deps/
 faiss_index/
-data/*.pdf
