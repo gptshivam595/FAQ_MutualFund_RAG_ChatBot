@@ -22,7 +22,13 @@ You help users with factual information about HDFC Mutual Fund schemes.
 Rules:
 
 * Answer ONLY from provided documents
-* Maximum 3 sentences
+* Maximum 2 sentences
+* Extract only the exact answer needed for the question
+* Do NOT copy full paragraphs or unrelated text
+* Extract ONLY the exact answer to the question.
+* Do NOT include unrelated information from the context.
+* Do NOT copy full paragraphs.
+* Return ONLY the most relevant sentence that directly answers the question.
 * ALWAYS include a source citation (PDF name + page number)
 * If answer not found, say:
   'I could not find this in official documents.'
@@ -90,6 +96,17 @@ EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNO
 WHITESPACE_PATTERN = re.compile(r"\s+")
 SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+|\n+|(?:\u2022)\s*")
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+PERCENT_PATTERN = re.compile(r"\d+(?:\.\d+)?%")
+DATE_PATTERN = re.compile(
+    r"\b\d{1,2}(?:[-/]\d{1,2}(?:[-/]\d{2,4})?|"
+    r"\s+[A-Za-z]+\s+\d{4}|"
+    r"\s+[A-Za-z]+\s*,?\s+\d{4})\b"
+)
+
+
+def clean_answer(text):
+    sentences = text.split(".")
+    return sentences[0].strip() + "."
 
 
 @dataclass(frozen=True)
@@ -130,13 +147,13 @@ class RAGConfig:
     data_dir: Path = Path("data")
     index_dir: Path = Path("faiss_index")
     manifest_path: Path = Path("faiss_index/manifest.json")
-    chunk_size: int = 500
-    chunk_overlap: int = 100
+    chunk_size: int = 400
+    chunk_overlap: int = 150
     embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2"
-    top_k: int = 4
+    top_k: int = 8
     fetch_k: int = 12
     similarity_threshold: float = 0.45
-    max_answer_sentences: int = 3
+    max_answer_sentences: int = 2
 
 
 class MutualFundRAGAssistant:
@@ -181,6 +198,7 @@ class MutualFundRAGAssistant:
         if not answer_text:
             return self._build_response("I could not find this in official documents.")
 
+        answer_text = clean_answer(answer_text)
         return self._build_response(answer_text, supporting_sources)
 
     def retrieve(self, query: str, force_rebuild: bool = False) -> list[Document]:
@@ -196,27 +214,28 @@ class MutualFundRAGAssistant:
             if score >= self.config.similarity_threshold:
                 qualified_by_id[document.metadata["chunk_id"]] = score
 
-        if not qualified_by_id:
-            return []
-
-        mmr_candidates = vector_store.max_marginal_relevance_search(
-            query,
-            k=self.config.top_k,
-            fetch_k=self.config.fetch_k,
+        retriever = vector_store.as_retriever(
+            search_type="mmr",
+            search_kwargs={"k": 6},
         )
+        docs = retriever.get_relevant_documents(query)
+
+        if not docs or len(docs) < 2:
+            docs = vector_store.similarity_search(query, k=6)
 
         selected_documents: list[Document] = []
         seen_chunk_ids: set[str] = set()
-        for document in mmr_candidates:
-            chunk_id = document.metadata["chunk_id"]
-            if chunk_id not in qualified_by_id or chunk_id in seen_chunk_ids:
+        for document in docs:
+            chunk_id = document.metadata.get("chunk_id")
+            if not chunk_id or chunk_id in seen_chunk_ids:
                 continue
-            document.metadata["relevance_score"] = qualified_by_id[chunk_id]
+            if chunk_id in qualified_by_id:
+                document.metadata["relevance_score"] = qualified_by_id[chunk_id]
             selected_documents.append(document)
             seen_chunk_ids.add(chunk_id)
 
         if selected_documents:
-            return selected_documents
+            return selected_documents[: self.config.top_k]
 
         fallback_documents: list[Document] = []
         for document, score in threshold_hits:
@@ -372,6 +391,7 @@ class MutualFundRAGAssistant:
     ) -> tuple[str, list[SourceCitation]]:
         ranked_candidates: list[tuple[float, str, SourceCitation]] = []
         query_terms = self._query_terms(query)
+        query_type = self._detect_query_type(query)
         seen_units: set[str] = set()
 
         for rank, document in enumerate(documents):
@@ -383,13 +403,14 @@ class MutualFundRAGAssistant:
             )
 
             for unit in self._extract_answer_units(document.page_content):
-                normalized_unit = unit.lower()
+                concise_unit = self._summarize_answer_unit(query, unit, query_type)
+                normalized_unit = concise_unit.lower()
                 if normalized_unit in seen_units:
                     continue
-                score = self._score_answer_unit(query_terms, unit, rank)
+                score = self._score_answer_unit(query_terms, concise_unit, rank)
                 if score <= 0:
                     continue
-                ranked_candidates.append((score, unit, source))
+                ranked_candidates.append((score, concise_unit, source))
                 seen_units.add(normalized_unit)
 
         ranked_candidates.sort(key=lambda item: item[0], reverse=True)
@@ -401,7 +422,10 @@ class MutualFundRAGAssistant:
         seen_sources: set[tuple[str, int]] = set()
 
         for _, sentence, source in ranked_candidates:
-            answer_sentences.append(sentence.rstrip(".") + ".")
+            concise_sentence = self._ensure_sentence(sentence)
+            if not concise_sentence:
+                continue
+            answer_sentences.append(concise_sentence)
             source_key = (source.filename, source.page_number)
             if source_key not in seen_sources:
                 sources.append(source)
@@ -416,7 +440,7 @@ class MutualFundRAGAssistant:
         units: list[str] = []
         for raw_unit in SENTENCE_SPLIT_PATTERN.split(content):
             cleaned = self._normalize_whitespace(raw_unit)
-            if 25 <= len(cleaned) <= 280:
+            if 12 <= len(cleaned) <= 220:
                 units.append(cleaned)
 
         if units:
@@ -424,8 +448,116 @@ class MutualFundRAGAssistant:
 
         cleaned_content = self._normalize_whitespace(content)
         if cleaned_content:
-            return [cleaned_content[:280]]
+            return [cleaned_content[:220]]
         return []
+
+    def _summarize_answer_unit(self, query: str, answer_unit: str, query_type: str) -> str:
+        cleaned_unit = self._normalize_whitespace(answer_unit)
+        best_clause = self._select_best_clause(cleaned_unit, query)
+
+        if query_type == "lock_in":
+            duration = re.search(
+                r"(?i)\b(\d+\s*(?:day|days|month|months|year|years))\b",
+                cleaned_unit,
+            )
+            if duration:
+                return f"Lock-in period: {duration.group(1)}"
+
+        if query_type == "benchmark":
+            benchmark = re.search(
+                r"(?i)\b(?:nifty|s&p\s*bse|bse|crisil|nse)\b[^.;:,]*?(?:tri|index)\b",
+                cleaned_unit,
+            )
+            if benchmark:
+                return f"Benchmark: {self._clean_fact_value(benchmark.group(0))}"
+
+        if query_type == "expense_ratio":
+            percentages = PERCENT_PATTERN.findall(cleaned_unit)
+            effective_date = DATE_PATTERN.search(cleaned_unit)
+            if len(percentages) >= 2 and "from" in cleaned_unit.lower() and "to" in cleaned_unit.lower():
+                answer = f"Expense ratio changed from {percentages[0]} to {percentages[1]}"
+                if effective_date:
+                    answer += f" effective {effective_date.group(0)}"
+                return answer
+            if percentages:
+                answer = f"Expense ratio: {', '.join(percentages[:2])}"
+                if effective_date:
+                    answer += f" effective {effective_date.group(0)}"
+                return answer
+
+        if query_type == "riskometer":
+            risk_level = re.search(
+                r"(?i)\b(low|low to moderate|moderate|moderately high|high|very high)\b",
+                cleaned_unit,
+            )
+            if risk_level:
+                return f"Risk level: {risk_level.group(1)}"
+
+        if query_type == "exit_load":
+            exit_load = re.search(r"(?i)\b\d+(?:\.\d+)?%\b[^.;]*", cleaned_unit)
+            if exit_load:
+                return f"Exit load: {self._clean_fact_value(exit_load.group(0))}"
+
+        if query_type == "minimum_investment":
+            minimum = re.search(r"(?i)\b(?:rs\.?|inr)\s*[\d,]+(?:\.\d+)?\b", cleaned_unit)
+            if minimum:
+                return f"Minimum investment: {self._clean_fact_value(minimum.group(0))}"
+
+        return best_clause
+
+    def _select_best_clause(self, text: str, query: str) -> str:
+        clauses = [self._normalize_whitespace(text)]
+        clauses.extend(
+            self._normalize_whitespace(part)
+            for part in re.split(r"\s*[;|]\s*|,\s+", text)
+            if self._normalize_whitespace(part)
+        )
+
+        query_terms = self._query_terms(query)
+        best_clause = self._normalize_whitespace(text)
+        best_score = float("-inf")
+
+        for clause in clauses:
+            score = self._score_answer_unit(query_terms, clause, rank=0)
+            score -= max(0, len(clause) - 120) / 25
+            if len(clause) < 8:
+                score -= 5
+            if score > best_score:
+                best_score = score
+                best_clause = clause
+
+        return self._clean_fact_value(best_clause)
+
+    def _detect_query_type(self, query: str) -> str:
+        lowered_query = query.lower()
+        if "lock-in" in lowered_query or "lock in" in lowered_query:
+            return "lock_in"
+        if "benchmark" in lowered_query:
+            return "benchmark"
+        if "expense ratio" in lowered_query:
+            return "expense_ratio"
+        if "riskometer" in lowered_query or "risk level" in lowered_query or "risk" in lowered_query:
+            return "riskometer"
+        if "exit load" in lowered_query:
+            return "exit_load"
+        if "minimum investment" in lowered_query or "minimum amount" in lowered_query or "min investment" in lowered_query:
+            return "minimum_investment"
+        return "generic"
+
+    def _clean_fact_value(self, text: str) -> str:
+        cleaned = self._normalize_whitespace(text)
+        cleaned = re.sub(r"^(?:the scheme(?:'s)?|scheme|fund)\s+(?:has|is|shall have|offers)\s+", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\bfrom the date of allotment\b", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,;:.")
+        return cleaned
+
+    def _ensure_sentence(self, text: str) -> str:
+        cleaned = self._clean_fact_value(text)
+        if not cleaned:
+            return ""
+        if cleaned.endswith((".", "!", "?")):
+            return cleaned
+        return f"{cleaned}."
 
     def _score_answer_unit(self, query_terms: set[str], answer_unit: str, rank: int) -> float:
         if not query_terms:
