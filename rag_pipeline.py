@@ -175,12 +175,28 @@ def generate_clean_answer(context: str, query: str) -> str:
     return WHITESPACE_PATTERN.sub(" ", result).strip()
 
 
-def smart_answer(context: str, query: str) -> str:
-    lowered_context = context.lower()
-    lowered_query = query.lower()
+def extract_relevant_context(context: str, query: str) -> str:
+    lines = context.split("\n")
 
-    if "lock-in" in lowered_query or "lock in" in lowered_query:
-        match = re.search(r"\b\d+\s*years?\b", lowered_context)
+    keywords: list[str] = []
+    if "lock" in query.lower():
+        keywords = ["lock", "year", "period"]
+    elif "expense" in query.lower():
+        keywords = ["expense", "ratio", "ter"]
+    elif "benchmark" in query.lower():
+        keywords = ["benchmark", "index"]
+
+    filtered = [
+        line for line in lines
+        if any(keyword in line.lower() for keyword in keywords)
+    ]
+
+    return " ".join(filtered) if filtered else context
+
+
+def smart_answer(context: str, query: str) -> str:
+    if "lock" in query.lower():
+        match = re.search(r"\b\d+\s*years?\b", context.lower())
         if match:
             return f"The lock-in period of HDFC ELSS Tax Saver is {match.group()}."
 
@@ -305,11 +321,13 @@ class MutualFundRAGAssistant:
             )
 
         retrieved_documents = retrieved_documents[: self.config.max_context_chunks]
-        context = self._build_context(retrieved_documents)
+        context_documents = self._select_context_documents(retrieved_documents, cleaned_query)
+        context = self._build_context(context_documents)
+        filtered_context = extract_relevant_context(context, cleaned_query)
         candidate_answer, supporting_sources = self._compose_answer(cleaned_query, retrieved_documents)
         if not supporting_sources:
-            supporting_sources = self._build_source_citations(retrieved_documents)
-        answer_text = smart_answer(context, cleaned_query)
+            supporting_sources = self._build_source_citations(context_documents)
+        answer_text = smart_answer(filtered_context, cleaned_query)
 
         if not answer_text:
             answer_text = candidate_answer
@@ -599,6 +617,36 @@ class MutualFundRAGAssistant:
             seen_sources.add(source_key)
 
         return citations
+
+    def _select_context_documents(
+        self,
+        documents: Sequence[Document],
+        query: str,
+    ) -> list[Document]:
+        lowered_query = query.lower()
+        keywords: list[str] = []
+
+        if "lock" in lowered_query:
+            keywords = ["lock", "year", "period"]
+        elif "expense" in lowered_query:
+            keywords = ["expense", "ratio", "ter"]
+        elif "benchmark" in lowered_query:
+            keywords = ["benchmark", "index"]
+
+        if not keywords:
+            return list(documents[:2])
+
+        scored_documents: list[tuple[int, Document]] = []
+        for document in documents:
+            lowered_content = document.page_content.lower()
+            score = sum(lowered_content.count(keyword) for keyword in keywords)
+            if "lock" in lowered_query and re.search(r"\b\d+\s*years?\b", lowered_content):
+                score += 5
+            scored_documents.append((score, document))
+
+        scored_documents.sort(key=lambda item: item[0], reverse=True)
+        selected_documents = [document for score, document in scored_documents if score > 0][:2]
+        return selected_documents or list(documents[:2])
 
     def _load_official_source_links(self) -> list[OfficialSourceLink]:
         if not self.config.sources_md_path.exists():
