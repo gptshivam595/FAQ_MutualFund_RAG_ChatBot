@@ -913,10 +913,16 @@ a {
 .chat-window__body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 1.5rem;
+  padding: 1.5rem 1.5rem 1rem;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.18);
   overscroll-behavior: contain;
+}
+
+.chat-window__messages {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .chat-message {
@@ -1024,7 +1030,10 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 0.7rem;
-  padding-top: 0.4rem;
+  padding: 1rem 1.5rem 1.15rem;
+  background: rgba(0, 0, 0, 0.28);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
 }
 
 .chat-quick-actions button {
@@ -1334,6 +1343,14 @@ a {
   .chat-window {
     width: 100%;
     max-height: calc(100dvh - 9.2rem);
+  }
+
+  .chat-window__body {
+    padding-inline: 1rem;
+  }
+
+  .chat-quick-actions {
+    padding: 0.9rem 1rem 1rem;
   }
 
   .chat-pill {

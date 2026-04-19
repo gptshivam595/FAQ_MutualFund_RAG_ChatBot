@@ -135,12 +135,16 @@ export default function App() {
   const [messages, setMessages] = useState(seededMessages);
   const [quickActions, setQuickActions] = useState(fallbackQuickActions);
   const chatBodyRef = useRef(null);
+  const messageEndRef = useRef(null);
 
   useEffect(() => {
-    if (!chatBodyRef.current) {
+    if (!chatOpen || !chatBodyRef.current || !messageEndRef.current) {
       return;
     }
-    chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+
+    requestAnimationFrame(() => {
+      messageEndRef.current?.scrollIntoView({ block: "end" });
+    });
   }, [messages, chatLoading, chatOpen]);
 
   useEffect(() => {
@@ -535,65 +539,68 @@ export default function App() {
           </div>
 
           <div className="chat-window__body" ref={chatBodyRef}>
-            {messages.map((message) => (
-              <div
-                className={`chat-message chat-message--${message.role}`}
-                key={message.id}
-              >
+            <div className="chat-window__messages">
+              {messages.map((message) => (
                 <div
-                  className={`chat-bubble chat-bubble--${message.role} chat-bubble--${getMessageTone(
-                    message.status,
-                  )}`}
+                  className={`chat-message chat-message--${message.role}`}
+                  key={message.id}
                 >
-                  <p>{message.text}</p>
-                  {message.role === "assistant" && (message.sourceLabel || message.lastUpdated) ? (
-                    <div className="chat-bubble__meta">
-                      {message.sourceLabel ? (
-                        <span>
-                          Source:{" "}
-                          {canLink(message.sourceUrl) ? (
-                            <a href={message.sourceUrl} target="_blank" rel="noreferrer">
-                              {message.sourceLabel}
-                            </a>
-                          ) : (
-                            message.sourceLabel
-                          )}
-                        </span>
-                      ) : null}
-                      {message.lastUpdated ? (
-                        <span>Last updated from sources: {message.lastUpdated}</span>
-                      ) : null}
-                    </div>
-                  ) : null}
+                  <div
+                    className={`chat-bubble chat-bubble--${message.role} chat-bubble--${getMessageTone(
+                      message.status,
+                    )}`}
+                  >
+                    <p>{message.text}</p>
+                    {message.role === "assistant" && (message.sourceLabel || message.lastUpdated) ? (
+                      <div className="chat-bubble__meta">
+                        {message.sourceLabel ? (
+                          <span>
+                            Source:{" "}
+                            {canLink(message.sourceUrl) ? (
+                              <a href={message.sourceUrl} target="_blank" rel="noreferrer">
+                                {message.sourceLabel}
+                              </a>
+                            ) : (
+                              message.sourceLabel
+                            )}
+                          </span>
+                        ) : null}
+                        {message.lastUpdated ? (
+                          <span>Last updated from sources: {message.lastUpdated}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <span className={`chat-message__stamp chat-message__stamp--${message.role}`}>
+                    {message.stamp}
+                  </span>
                 </div>
-                <span className={`chat-message__stamp chat-message__stamp--${message.role}`}>
-                  {message.stamp}
-                </span>
-              </div>
-            ))}
+              ))}
 
-            {chatLoading ? (
-              <div className="chat-message chat-message--assistant">
-                <div className="chat-bubble chat-bubble--assistant chat-bubble--typing">
-                  <span />
-                  <span />
-                  <span />
+              {chatLoading ? (
+                <div className="chat-message chat-message--assistant">
+                  <div className="chat-bubble chat-bubble--assistant chat-bubble--typing">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+              <div ref={messageEndRef} />
+            </div>
+          </div>
 
-            <div className="chat-quick-actions">
-          {quickActions.map((item) => (
+          <div className="chat-quick-actions">
+            {quickActions.map((item) => (
               <button
                 type="button"
-                  key={item}
-                  onClick={() => handleQuickAction(item)}
-                  disabled={chatLoading}
-                >
-                  {item}
+                key={item}
+                onClick={() => handleQuickAction(item)}
+                disabled={chatLoading}
+              >
+                {item}
               </button>
             ))}
-          </div>
           </div>
 
           <div className="chat-window__footer">
