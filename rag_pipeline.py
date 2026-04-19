@@ -28,6 +28,19 @@ client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 INDEX_PATH = "faiss_index"
 
+# -- Fund name keyword -> official URL mapping ------------------------
+FUND_URL_MAP = {
+    "elss-tax-saver": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct",
+    "elss tax saver": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct",
+    "flexi-cap": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct",
+    "flexi cap": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct",
+    "top-100": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-top-100-fund/direct",
+    "top 100": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-top-100-fund/direct",
+    "large-cap": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct",
+    "large cap": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct",
+}
+# --------------------------------------------------------------------
+
 
 SYSTEM_PROMPT = """You are a Mutual Fund FAQ assistant for INDMoney.
 
@@ -145,6 +158,20 @@ try:
     qa_model = load_model()
 except Exception:  # pragma: no cover - local fallback if model download/load fails
     qa_model = None
+
+
+@st.cache_resource
+def load_vectorstore(_assistant, _pdf_paths: tuple[Path, ...], cache_key: tuple[tuple[str, int, int], ...]) -> FAISS:
+    print("Building FAISS index...")
+    documents = _assistant._load_documents(_pdf_paths)
+    print("Filtering documents...")
+    documents = [document for document in documents if document.page_content.strip()]
+    chunks = _assistant._chunk_documents(documents)
+    print("Embedding chunks...")
+    vectorstore = FAISS.from_documents(chunks, _assistant._embeddings)
+    _assistant._document_count = len(documents)
+    print("Index ready")
+    return vectorstore
 
 
 def clean_answer(text: str, query: str | None = None) -> str:
@@ -486,44 +513,22 @@ class MutualFundRAGAssistant:
                 "No eligible PDFs were found in data/. Add the official HDFC Mutual Fund PDFs and try again."
             )
 
-        data_changed = self._index_is_stale(pdf_paths=pdf_paths)
-        should_rebuild = force_rebuild or data_changed
-        if not should_rebuild:
-            if self._vector_store is None:
-                try:
-                    print("Loading FAISS index...")
-                    self._vector_store = FAISS.load_local(
-                        INDEX_PATH,
-                        self._embeddings,
-                        allow_dangerous_deserialization=True,
-                    )
-                    print("Index ready")
-                except Exception:
-                    should_rebuild = True
-            if not should_rebuild:
-                return self._stored_document_count() or len(pdf_paths)
+        pdf_paths_tuple = tuple(pdf_paths)
+        cache_key = tuple(
+            (pdf_path.name, pdf_path.stat().st_size, pdf_path.stat().st_mtime_ns)
+            for pdf_path in pdf_paths_tuple
+        )
+        if force_rebuild:
+            load_vectorstore.clear()
+            self._vector_store = None
 
-        print("Building FAISS index...")
-        current_hash = self._compute_pdf_hash(pdf_paths)
-        documents = self._load_documents(pdf_paths)
-        chunks = self._chunk_documents(documents)
-        self._vector_store = FAISS.from_documents(chunks, self._embeddings)
-        self._vector_store.save_local(INDEX_PATH)
-        print("Index ready")
-        self.config.manifest_path.write_text(
-            json.dumps(self._build_manifest(), indent=2),
-            encoding="utf-8",
-        )
-        self.config.index_meta_path.write_text(
-            json.dumps(self._build_index_metadata(current_hash, pdf_paths, len(documents)), indent=2),
-            encoding="utf-8",
-        )
-        return len(documents)
+        self._vector_store = load_vectorstore(self, pdf_paths_tuple, cache_key)
+        return getattr(self, "_document_count", len(pdf_paths_tuple))
 
     def data_status(self) -> dict[str, int]:
         pdf_count = len(self._discover_pdf_paths())
         eligible_count = len(self._eligible_pdf_paths())
-        indexed = int((self.config.index_dir / "index.faiss").exists())
+        indexed = int(self._vector_store is not None)
         return {
             "pdf_count": pdf_count,
             "eligible_pdf_count": eligible_count,
@@ -543,7 +548,7 @@ class MutualFundRAGAssistant:
         )
 
     def _get_vector_store(self, force_rebuild: bool = False) -> FAISS:
-        if self._vector_store is not None and not force_rebuild and not self._index_is_stale():
+        if self._vector_store is not None and not force_rebuild:
             return self._vector_store
 
         self.build_index(force_rebuild=force_rebuild)
@@ -581,15 +586,25 @@ class MutualFundRAGAssistant:
             loader = PyPDFLoader(str(pdf_path))
             docs = loader.load()
 
+            filename_lower = os.path.basename(str(pdf_path)).lower()
+
+            matched_url = ""
+            for keyword, url in FUND_URL_MAP.items():
+                if keyword in filename_lower:
+                    matched_url = url
+                    break
+
+            date_match = re.search(
+                r"dated[_\s]+([a-z]+[_\s]+\d{1,2}[_,\s]+\d{4})",
+                filename_lower
+            )
+            matched_date = date_match.group(1).replace("_", " ").title() if date_match else ""
+
             for doc in docs:
-                if "url" not in doc.metadata:
-                    doc.metadata["url"] = doc.metadata.get("source_url", "")
-                if "date" not in doc.metadata:
-                    match = re.search(
-                        r"dated\s([A-Za-z]+\s\d{1,2},\s\d{4})",
-                        doc.metadata.get("source", "")
-                    )
-                    doc.metadata["date"] = match.group(1) if match else ""
+                if not doc.metadata.get("url"):
+                    doc.metadata["url"] = matched_url
+                if not doc.metadata.get("date"):
+                    doc.metadata["date"] = matched_date
 
             for page in docs:
                 content = self._normalize_whitespace(page.page_content)

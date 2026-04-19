@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import os
-import shutil
 from pathlib import Path
 
 import streamlit as st
 
-from rag_pipeline import INDEX_PATH, MutualFundRAGAssistant
+from rag_pipeline import MutualFundRAGAssistant, load_vectorstore
 
 
 st.set_page_config(
@@ -36,9 +34,8 @@ def render_sidebar(assistant: MutualFundRAGAssistant) -> None:
         if st.button("Rebuild index", use_container_width=True):
             try:
                 with st.spinner("Rebuilding the local FAISS index..."):
-                    if os.path.exists(INDEX_PATH):
-                        shutil.rmtree(INDEX_PATH)
-                    assistant.build_index(force_rebuild=True)
+                    load_vectorstore.clear()
+                    st.rerun()
             except FileNotFoundError as exc:
                 st.warning(str(exc))
             else:
