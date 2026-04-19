@@ -264,28 +264,50 @@ def smart_answer(context: str, query: str) -> str:
     if "lock" in q and "elss" in q:
         return "The lock-in period of HDFC ELSS Tax Saver is 3 years as per SEBI regulations."
 
-    if "lock" in q:
-        match = re.search(r"\b\d+\s*years?\b", context.lower())
-        if match:
-            return f"The lock-in period of HDFC ELSS Tax Saver is {match.group()}."
+    if "benchmark" in q:
+        for line in context.split("\n"):
+            line = line.strip()
+            if any(kw in line.lower() for kw in ["nifty", "sensex", "bse", "crisil", "index"]):
+                clean = line.split(".")[0].strip()
+                if len(clean) > 10:
+                    return f"The benchmark index is {clean}."
+        return "The benchmark index is specified in the official scheme documents."
 
     if "expense" in q or "ter" in q:
-        percent_lines = [line for line in context.split("\n") if "%" in line]
-        if not percent_lines:
-            return "The expense ratio has been updated per official disclosures. Refer to the latest factsheet."
-        expense_context = "\n".join(percent_lines)
-        match = re.search(r"\b\d+(?:\.\d+)?\s*%", expense_context)
+        lines_with_percent = [
+            line.strip()
+            for line in context.split("\n")
+            if "%" in line and any(kw in line.lower() for kw in ["expense", "ter", "ratio"])
+        ]
+        if lines_with_percent:
+            match = re.search(r"\b\d+(\.\d+)?\s*%", lines_with_percent[0])
+            if match:
+                return f"The expense ratio is approximately {match.group()}."
+        match = re.search(r"\b\d+(\.\d+)?\s*%", context)
         if match:
             return f"The expense ratio is approximately {match.group()}."
-        return "The expense ratio has been updated per official disclosures. Refer to the latest factsheet."
+        return "The expense ratio is updated periodically per official disclosures. Refer to the latest factsheet."
 
     if "sip" in q or "minimum" in q:
-        match = re.search(r"(?:₹|rs\.?|inr)?\s?\d+", context, re.IGNORECASE)
+        match = re.search(r"₹\s?\d[\d,]*|\bRs\.?\s?\d[\d,]*|\b\d{3,}", context)
         if match:
-            return f"The minimum investment starts from {match.group().strip()}."
+            return f"The minimum investment amount starts from {match.group().strip()}."
+        return "The minimum investment details are available in the official scheme documents."
 
-    filtered_context = extract_relevant_context(context, query)
-    return clean_answer(filtered_context, query)
+    if "nav" in q:
+        match = re.search(r"₹?\s?\d+(\.\d+)?", context)
+        if match:
+            return f"The NAV is approximately {match.group().strip()}."
+        return "The current NAV is available on the AMC website and official factsheet."
+
+    if "exit load" in q or "exit" in q:
+        for line in context.split("\n"):
+            if "exit" in line.lower() and "%" in line:
+                clean = line.strip().split(".")[0]
+                return f"The exit load is: {clean}."
+        return "Exit load details are specified in the official scheme documents."
+
+    return generate_clean_answer(context, query)
 
 
 @dataclass(frozen=True)
