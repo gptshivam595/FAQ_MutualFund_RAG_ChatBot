@@ -113,18 +113,9 @@ const seededMessages = [
   {
     id: "seed-assistant",
     role: "assistant",
-    text: "The HDFC Top 100 Fund currently has an expense ratio of 1.12% for the Direct Plan.",
-    sourceLabel: "Official HDFC AMC Factsheet",
-    sourceUrl: "https://www.hdfcfund.com",
-    lastUpdated: "October 2023",
+    text: "Hello! I'm Coco, your INDMoney assistant. How can I help you grow your wealth today?",
     stamp: "14:20 NODE-01",
     status: "success",
-  },
-  {
-    id: "seed-user",
-    role: "user",
-    text: "Analyze ELSS tax benefits for 30% slab.",
-    stamp: "14:21 CLIENT",
   },
 ];
 
@@ -524,7 +515,7 @@ export default function App() {
                 <p>Coco</p>
                 <div className="chat-live">
                   <span />
-                  Neural Node Active
+                  Online
                 </div>
               </div>
             </div>
@@ -586,21 +577,22 @@ export default function App() {
                   </div>
                 </div>
               ) : null}
-              <div ref={messageEndRef} />
-            </div>
-          </div>
 
-          <div className="chat-quick-actions">
-            {quickActions.map((item) => (
-              <button
-                type="button"
-                key={item}
-                onClick={() => handleQuickAction(item)}
-                disabled={chatLoading}
-              >
-                {item}
-              </button>
-            ))}
+              <div ref={messageEndRef} />
+
+              <div className="chat-quick-actions">
+                {quickActions.map((item) => (
+                  <button
+                    type="button"
+                    key={item}
+                    onClick={() => handleQuickAction(item)}
+                    disabled={chatLoading}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="chat-window__footer">

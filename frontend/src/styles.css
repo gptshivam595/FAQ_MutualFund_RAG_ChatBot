@@ -875,9 +875,9 @@ a {
 
 .chat-window__identity p {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 900;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
@@ -887,9 +887,9 @@ a {
   gap: 0.55rem;
   margin-top: 0.35rem;
   color: var(--gold);
-  font-size: 0.7rem;
+  font-size: 0.64rem;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -913,16 +913,10 @@ a {
 .chat-window__body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 1.5rem 1.5rem 1rem;
+  padding: 1.5rem;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.18);
   overscroll-behavior: contain;
-}
-
-.chat-window__messages {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
 }
 
 .chat-message {
@@ -942,9 +936,9 @@ a {
 .chat-bubble {
   max-width: 85%;
   border-radius: 1.5rem;
-  padding: 1.2rem 1.3rem;
-  font-size: 0.88rem;
-  line-height: 1.6;
+  padding: 1rem 1.1rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
 }
 
 .chat-bubble p {
@@ -969,9 +963,9 @@ a {
 }
 
 .chat-bubble__meta {
-  margin-top: 1rem;
+  margin-top: 0.8rem;
   color: var(--muted);
-  font-size: 0.73rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: none;
 }
@@ -990,9 +984,9 @@ a {
 .chat-message__stamp {
   margin-top: 0.45rem;
   color: var(--muted);
-  font-size: 0.66rem;
+  font-size: 0.6rem;
   font-weight: 900;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -1030,21 +1024,18 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 0.7rem;
-  padding: 1rem 1.5rem 1.15rem;
-  background: rgba(0, 0, 0, 0.28);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-  flex-shrink: 0;
+  padding-top: 0.4rem;
 }
 
 .chat-quick-actions button {
-  padding: 0.8rem 1rem;
+  padding: 0.72rem 0.9rem;
   border-radius: 999px;
   border: 1px solid rgba(212, 175, 55, 0.2);
   background: rgba(212, 175, 55, 0.06);
   color: var(--gold);
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -1070,7 +1061,7 @@ a {
   border: 0;
   background: transparent;
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   outline: 0;
 }
 
@@ -1092,9 +1083,9 @@ a {
 .chat-window__footer p {
   margin: 1rem 0 0;
   color: rgba(181, 174, 156, 0.34);
-  font-size: 0.58rem;
+  font-size: 0.54rem;
   font-weight: 900;
-  letter-spacing: 0.36em;
+  letter-spacing: 0.28em;
   text-align: center;
   text-transform: uppercase;
 }
@@ -1343,14 +1334,6 @@ a {
   .chat-window {
     width: 100%;
     max-height: calc(100dvh - 9.2rem);
-  }
-
-  .chat-window__body {
-    padding-inline: 1rem;
-  }
-
-  .chat-quick-actions {
-    padding: 0.9rem 1rem 1rem;
   }
 
   .chat-pill {
