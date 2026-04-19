@@ -16,3 +16,13 @@ export async function askQuestion(query) {
 
   return response.json();
 }
+
+export async function getSuggestions() {
+  const response = await fetch(`${API_BASE_URL}/api/suggestions`);
+
+  if (!response.ok) {
+    throw new Error("Unable to fetch suggestions right now.");
+  }
+
+  return response.json();
+}

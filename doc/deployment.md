@@ -19,6 +19,7 @@
 ### Backend
 
 - `ALLOWED_ORIGINS`
+- `OPENAI_API_KEY` for smarter suggested questions and fallback guidance
 
 ### Frontend
 

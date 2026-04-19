@@ -1,147 +1,171 @@
 import { useEffect, useRef, useState } from "react";
 
-import { askQuestion } from "./services/api";
+import { askQuestion, getSuggestions } from "./services/api";
 
-const marqueeItems = [
-  "AMC Scheme Pages",
-  "KIM / SID Documents",
-  "Factsheet Pages",
-  "AMC Statement Help",
-  "AMFI Investor Pages",
-  "SEBI Education",
+const marketItems = [
+  { label: "NIFTY 50", value: "22,147.20", delta: "0.45%", tone: "up" },
+  { label: "NASDAQ", value: "16,177.77", delta: "0.12%", tone: "down" },
+  { label: "SENSEX", value: "73,158.24", delta: "0.38%", tone: "up" },
+  { label: "GOLD (MCX)", value: "62,840.00", delta: "1.20%", tone: "gold" },
+  { label: "S&P 500", value: "5,088.80", delta: "0.03%", tone: "up" },
 ];
 
-const examplePrompts = [
+const navItems = [
+  "Investment Hub",
+  "Institutional Tools",
+  "Market Intelligence",
+  "Private Client Group",
+];
+
+const tableRows = [
+  {
+    badge: "H",
+    name: "HDFC Top 100 Growth",
+    sublabel: "Large Cap Focus",
+    cagr: "18.42%",
+    risk: "Moderate-High",
+    riskTone: "amber",
+    aum: "₹32,450 Cr",
+  },
+  {
+    badge: "Q",
+    name: "Quant Active Fund",
+    sublabel: "Multi Cap Opportunities",
+    cagr: "24.15%",
+    risk: "Very High",
+    riskTone: "red",
+    aum: "₹9,820 Cr",
+  },
+  {
+    badge: "P",
+    name: "Parag Parikh Flexi Cap",
+    sublabel: "Global Diversification",
+    cagr: "19.78%",
+    risk: "Moderate",
+    riskTone: "amber",
+    aum: "₹52,140 Cr",
+  },
+];
+
+const features = [
+  {
+    icon: "verified_user",
+    title: "Vault-Grade Security",
+    text: "Institutional-grade cold storage protocols and end-to-end encryption for the sanctity of your private capital.",
+  },
+  {
+    icon: "query_stats",
+    title: "Algorithmic Alpha",
+    text: "Proprietary models that scan 40,000+ data points daily to identify inefficiencies and capture institutional growth.",
+  },
+  {
+    icon: "diamond",
+    title: "Concierge Access",
+    text: "A dedicated relationship ecosystem designed to cater to the unique liquidity and planning needs of HNI families.",
+  },
+];
+
+const fallbackQuickActions = [
   "Expense ratio of HDFC Flexi Cap Fund?",
-  "What is the lock-in for HDFC ELSS Tax Saver?",
   "How do I download a capital gains statement?",
+  "What is the lock-in for HDFC ELSS Tax Saver?",
 ];
 
-const quickQuestions = [
-  "Minimum SIP for HDFC Large Cap Fund?",
-  "What is the benchmark of HDFC Flexi Cap Fund?",
-  "How do I download CAS?",
-  "What is the riskometer for HDFC ELSS Tax Saver?",
+const footerGovernance = [
+  "Regulatory Charter",
+  "Client Confidentiality",
+  "Risk Governance",
 ];
 
-const policyCards = [
-  {
-    title: "Strict source policy",
-    text: "Only official AMC, AMFI, and SEBI pages are used for answers.",
-  },
-  {
-    title: "Search-first flow",
-    text: "Ask a narrow question and get a short audited answer with one source link.",
-  },
-  {
-    title: "Compliance boundary",
-    text: "Advice, return claims, comparisons, and PII collection are refused.",
-  },
+const footerEcosystem = [
+  "Family Office",
+  "Intelligence Center",
+  "Capital Markets",
 ];
 
-const routingBuckets = [
-  {
-    label: "scheme_fact",
-    example: "Expense ratio of HDFC Flexi Cap Fund?",
-  },
-  {
-    label: "statement_or_tax_doc_help",
-    example: "How do I download capital gains statement?",
-  },
-  {
-    label: "performance_or_advice_refusal",
-    example: "Should I buy this fund?",
-  },
-  {
-    label: "pii_refusal",
-    example: "My PAN is ... help me get statement",
-  },
+const systemLinks = [
+  { label: "Frontend Flowchart", href: "/flowchart.html" },
 ];
-
-const introMessage = {
-  id: "intro",
-  role: "assistant",
-  text: "Ask a factual scheme or statement-help question. I will answer with the official source link and last updated date.",
-  status: "success",
-};
 
 function createId(prefix) {
   return `${prefix}-${Date.now()}-${Math.round(Math.random() * 100000)}`;
 }
 
-function getSourceLabel(url) {
-  if (!url || !/^https?:\/\//i.test(url)) {
-    return "Official source";
-  }
-
-  try {
-    const { hostname } = new URL(url);
-    return hostname.replace(/^www\./i, "");
-  } catch {
-    return "Official source";
-  }
-}
-
-function preferredSourceLabel(result) {
-  if (result?.source_label) {
-    return result.source_label;
-  }
-  return getSourceLabel(result?.source_url);
-}
-
-function statusLabel(status) {
-  if (status === "refused") {
-    return "Refused";
-  }
-  if (status === "error") {
-    return "Issue";
-  }
-  return "Verified";
+function formatStamp(role) {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes} ${role === "assistant" ? "NODE-01" : "CLIENT"}`;
 }
 
 function canLink(url) {
   return /^https?:\/\//i.test(url || "");
 }
 
-export default function App() {
-  const [heroQuery, setHeroQuery] = useState("");
-  const [heroLoading, setHeroLoading] = useState(false);
-  const [heroResult, setHeroResult] = useState(null);
-  const [heroError, setHeroError] = useState("");
-  const [heroQuestion, setHeroQuestion] = useState("");
+function getMessageTone(status) {
+  if (status === "refused" || status === "error") {
+    return "warning";
+  }
+  return "default";
+}
 
-  const [chatOpen, setChatOpen] = useState(false);
+const seededMessages = [
+  {
+    id: "seed-assistant",
+    role: "assistant",
+    text: "The HDFC Top 100 Fund currently has an expense ratio of 1.12% for the Direct Plan.",
+    sourceLabel: "Official HDFC AMC Factsheet",
+    sourceUrl: "https://www.hdfcfund.com",
+    lastUpdated: "October 2023",
+    stamp: "14:20 NODE-01",
+    status: "success",
+  },
+  {
+    id: "seed-user",
+    role: "user",
+    text: "Analyze ELSS tax benefits for 30% slab.",
+    stamp: "14:21 CLIENT",
+  },
+];
+
+export default function App() {
+  const [chatOpen, setChatOpen] = useState(true);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
-  const [messages, setMessages] = useState([introMessage]);
-
+  const [messages, setMessages] = useState(seededMessages);
+  const [quickActions, setQuickActions] = useState(fallbackQuickActions);
   const chatBodyRef = useRef(null);
 
   useEffect(() => {
     if (!chatBodyRef.current) {
       return;
     }
-
     chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
   }, [messages, chatLoading, chatOpen]);
 
-  const runHeroSearch = async (query) => {
-    setHeroLoading(true);
-    setHeroError("");
-    setHeroQuestion(query);
+  useEffect(() => {
+    let ignore = false;
 
-    try {
-      const payload = await askQuestion(query);
-      setHeroResult(payload);
-    } catch (error) {
-      setHeroResult(null);
-      setHeroError(error.message || "Unable to fetch an answer right now.");
-    } finally {
-      setHeroLoading(false);
+    async function loadSuggestions() {
+      try {
+        const payload = await getSuggestions();
+        if (!ignore && Array.isArray(payload.questions) && payload.questions.length) {
+          setQuickActions(payload.questions.slice(0, 3));
+        }
+      } catch {
+        if (!ignore) {
+          setQuickActions(fallbackQuickActions);
+        }
+      }
     }
-  };
 
-  const runChatSearch = async (query) => {
+    loadSuggestions();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const submitQuery = async (query) => {
     const trimmed = query.trim();
     if (!trimmed || chatLoading) {
       return;
@@ -150,26 +174,32 @@ export default function App() {
     setChatOpen(true);
     setChatLoading(true);
     setChatInput("");
+
     setMessages((current) => [
       ...current,
       {
         id: createId("user"),
         role: "user",
         text: trimmed,
+        stamp: formatStamp("user"),
       },
     ]);
 
     try {
       const payload = await askQuestion(trimmed);
+      if (Array.isArray(payload.suggested_questions) && payload.suggested_questions.length) {
+        setQuickActions(payload.suggested_questions.slice(0, 3));
+      }
       setMessages((current) => [
         ...current,
         {
           id: createId("assistant"),
           role: "assistant",
           text: payload.answer,
+          sourceLabel: payload.source_label,
           sourceUrl: payload.source_url,
-          sourceLabel: payload.source_label || getSourceLabel(payload.source_url),
           lastUpdated: payload.last_updated,
+          stamp: formatStamp("assistant"),
           status: payload.status,
         },
       ]);
@@ -180,6 +210,7 @@ export default function App() {
           id: createId("assistant-error"),
           role: "assistant",
           text: error.message || "Unable to fetch an answer right now.",
+          stamp: formatStamp("assistant"),
           status: "error",
         },
       ]);
@@ -188,206 +219,310 @@ export default function App() {
     }
   };
 
-  const handleHeroSubmit = async (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    const trimmed = heroQuery.trim();
-    if (!trimmed || heroLoading) {
-      return;
-    }
-    await runHeroSearch(trimmed);
+    await submitQuery(chatInput);
   };
 
-  const handleChatSubmit = async (event) => {
-    event.preventDefault();
-    await runChatSearch(chatInput);
+  const handleQuickAction = async (query) => {
+    await submitQuery(query);
   };
-
-  const handleExamplePrompt = async (prompt) => {
-    setHeroQuery(prompt);
-    await runHeroSearch(prompt);
-  };
-
-  const handleQuickQuestion = async (prompt) => {
-    await runChatSearch(prompt);
-  };
-
-  const latestHeroStatus = heroError ? "error" : heroResult?.status || "success";
 
   return (
-    <div className="app-shell">
-      <div className="market-strip">
-        <div className="market-strip__track">
-          {[...marqueeItems, ...marqueeItems].map((item, index) => (
-            <div key={`${item}-${index}`} className="market-strip__item">
-              <span className="market-strip__dot" />
-              <span>{item}</span>
+    <div className="page">
+      <div className="ticker-bar">
+        <div className="ticker-track">
+          {[...marketItems, ...marketItems].map((item, index) => (
+            <div className="ticker-item" key={`${item.label}-${index}`}>
+              <span className="ticker-item__label">{item.label}</span>
+              <span className="ticker-item__value">{item.value}</span>
+              <span className={`ticker-item__delta ticker-item__delta--${item.tone}`}>
+                <span className="material-symbols-outlined">
+                  {item.tone === "down" ? "arrow_drop_down" : "arrow_drop_up"}
+                </span>
+                {item.delta}
+              </span>
             </div>
           ))}
         </div>
       </div>
 
-      <nav className="top-nav">
-        <div className="brand-mark">
-          Fund<span>Scope</span>
+      <nav className="nav-bar">
+        <div className="brand">
+          IND<span>Money</span>
         </div>
-        <div className="top-nav__links">
-          <a href="#search">Search-first</a>
-          <a href="#policy">Source policy</a>
-          <a href="#router">Query router</a>
+        <div className="nav-links">
+          {navItems.map((item) => (
+            <a href="#!" key={item}>
+              {item}
+            </a>
+          ))}
         </div>
-        <button className="nav-action" type="button" onClick={() => setChatOpen(true)}>
-          Open assistant
-        </button>
+        <div className="nav-actions">
+          <a className="nav-flow-link" href="/flowchart.html" target="_blank" rel="noreferrer">
+            Flowchart
+          </a>
+          <button type="button" className="nav-link-button">
+            Access Account
+          </button>
+          <button type="button" className="gold-button gold-button--pill">
+            Initialize Wealth
+          </button>
+        </div>
       </nav>
 
-      <main className="page-main">
-        <section className="hero-section" id="search">
-          <div className="hero-copy">
-            <p className="eyebrow">Facts-only mutual fund assistant</p>
-            <h1>Official mutual fund facts, in a lighter search flow.</h1>
-            <p className="hero-text">
-              Welcome. Ask about scheme facts, statement help, CAS, benchmark, lock-in,
-              riskometer, or minimum SIP from the approved official source list only.
-            </p>
-
-            <form className="hero-search" onSubmit={handleHeroSubmit}>
-              <label className="sr-only" htmlFor="hero-query">
-                Ask a mutual fund question
-              </label>
-              <input
-                id="hero-query"
-                value={heroQuery}
-                onChange={(event) => setHeroQuery(event.target.value)}
-                placeholder="Expense ratio, lock-in, benchmark, statements..."
-                className="hero-search__input"
-              />
-              <button className="hero-search__button" type="submit" disabled={heroLoading}>
-                {heroLoading ? "Checking..." : "Search official facts"}
-              </button>
-            </form>
-
-            <div className="prompt-row">
-              {examplePrompts.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  className="prompt-chip"
-                  onClick={() => handleExamplePrompt(prompt)}
-                >
-                  {prompt}
+      <main className="main-content">
+        <section className="hero particle-overlay">
+          <div className="hero-glow" />
+          <div className="hero-grid">
+            <div className="hero-copy reveal">
+              <div className="tier-chip">
+                <span className="tier-chip__dot" />
+                Sovereign Wealth Management Tier
+              </div>
+              <h1>
+                Mastery
+                <br />
+                Over
+                <br />
+                <span>Private Capital</span>
+              </h1>
+              <p>
+                Orchestrate your financial future with proprietary algorithmic strategies and
+                elite mutual fund portfolios. Precision engineering for the sophisticated
+                investor.
+              </p>
+              <div className="hero-actions">
+                <button type="button" className="gold-button hero-button">
+                  Start Your Legacy
                 </button>
-              ))}
+                <button type="button" className="ghost-button hero-button">
+                  Audit Performance
+                </button>
+              </div>
             </div>
 
-            <p className="micro-disclaimer">Facts-only. No investment advice.</p>
-          </div>
-
-          <div className="hero-stack">
-            <article className="answer-card">
-              <div className="answer-card__header">
+            <div className="hero-card reveal reveal-delay-1">
+              <div className="hero-card__header">
                 <div>
-                  <p className="answer-card__kicker">Compact answer card</p>
-                  <h2>Latest response</h2>
+                  <p className="eyebrow-copy">Managed Assets Value</p>
+                  <h2>₹8,42,85,200</h2>
                 </div>
-                <span className={`status-pill status-pill--${latestHeroStatus}`}>
-                  {statusLabel(latestHeroStatus)}
-                </span>
+                <div className="hero-card__gain">+22.4% YTD</div>
               </div>
-
-              {heroResult ? (
-                <>
-                  <p className="answer-card__question">{heroQuestion}</p>
-                  <p className="answer-card__text">{heroResult.answer}</p>
-                  <div className="answer-card__meta">
-                    {canLink(heroResult.source_url) ? (
-                      <a href={heroResult.source_url} target="_blank" rel="noreferrer">
-                        Source: {preferredSourceLabel(heroResult)}
-                      </a>
-                    ) : (
-                      <span>Source: Official source unavailable</span>
-                    )}
-                    <span>Last updated: {heroResult.last_updated}</span>
+              <div className="hero-bars">
+                <span style={{ height: "32%" }} />
+                <span style={{ height: "40%" }} />
+                <span style={{ height: "52%" }} />
+                <span className="hero-bars__accent" style={{ height: "63%" }} />
+                <span className="hero-bars__accent" style={{ height: "82%" }} />
+                <span className="hero-bars__gold" style={{ height: "100%" }} />
+              </div>
+              <div className="hero-card__footer">
+                <div className="hero-card__secure">
+                  <div className="icon-badge small">
+                    <span className="material-symbols-outlined">verified_user</span>
                   </div>
-                </>
-              ) : heroError ? (
-                <>
-                  <p className="answer-card__question">Search request</p>
-                  <p className="answer-card__text">{heroError}</p>
-                </>
-              ) : (
-                <>
-                  <p className="answer-card__question">Expected format</p>
-                  <p className="answer-card__text">
-                    Sentence 1 gives the direct factual answer. Sentence 2 gives one official
-                    source link. Sentence 3 shows the last updated date from sources.
-                  </p>
-                </>
-              )}
-            </article>
-
-            <article className="scope-card" id="policy">
-              <div className="scope-card__section">
-                <p className="scope-card__eyebrow">Allowlist</p>
-                <ul>
-                  <li>AMC scheme pages</li>
-                  <li>AMC KIM, SID, and factsheet pages</li>
-                  <li>AMC statement and help pages</li>
-                  <li>AMFI investor information pages</li>
-                  <li>SEBI investor education pages</li>
-                </ul>
+                  <div>
+                    <p>Sovereign Secured</p>
+                    <span>Lvl 4 Encryption Active</span>
+                  </div>
+                </div>
+                <span className="hero-card__update">Updated 2m Ago</span>
               </div>
-              <div className="scope-card__section">
-                <p className="scope-card__eyebrow">Current HDFC scope</p>
-                <ul>
-                  <li>HDFC Large Cap Fund</li>
-                  <li>HDFC Flexi Cap Fund</li>
-                  <li>HDFC ELSS Tax Saver</li>
-                </ul>
-              </div>
-            </article>
+            </div>
           </div>
         </section>
 
-        <section className="policy-section">
-          <div className="section-heading">
-            <p className="eyebrow">Lightweight help UX</p>
-            <h2>Built for quick topic discovery, not a long chat thread.</h2>
+        <section className="section section--analytics">
+          <div className="section-header">
+            <div>
+              <p className="section-kicker">Institutional Analytics</p>
+              <h2>Top-Tier Capital Allocation</h2>
+            </div>
+            <p className="section-copy">
+              Exclusive access to top-decile mutual fund strategies, curated for superior
+              risk-adjusted returns across market cycles.
+            </p>
           </div>
-          <div className="policy-grid">
-            {policyCards.map((card) => (
-              <article key={card.title} className="policy-card">
-                <span className="material-symbols-outlined policy-card__icon">verified</span>
-                <h3>{card.title}</h3>
-                <p>{card.text}</p>
-              </article>
+
+          <div className="strategy-table">
+            <div className="strategy-table__head">
+              <span>Asset Strategy</span>
+              <span>CAGR (5Y)</span>
+              <span>Risk Grade</span>
+              <span>AUM Managed</span>
+              <span />
+            </div>
+
+            {tableRows.map((row) => (
+              <div className="strategy-row" key={row.name}>
+                <div className="strategy-row__fund">
+                  <div className="strategy-row__badge">{row.badge}</div>
+                  <div>
+                    <p>{row.name}</p>
+                    <span>{row.sublabel}</span>
+                  </div>
+                </div>
+                <div className="strategy-row__cagr">{row.cagr}</div>
+                <div>
+                  <span className={`risk-pill risk-pill--${row.riskTone}`}>{row.risk}</span>
+                </div>
+                <div className="strategy-row__aum">{row.aum}</div>
+                <button type="button" className="deploy-link">
+                  Deploy Capital
+                </button>
+              </div>
             ))}
           </div>
         </section>
 
-        <section className="router-section" id="router">
-          <div className="section-heading">
-            <p className="eyebrow">Intent buckets</p>
-            <h2>Queries are routed into narrow, auditable paths.</h2>
+        <section className="section section--forecast">
+          <div className="section-heading centered">
+            <p className="section-kicker">Simulation Suite</p>
+            <h2>Growth Forecasting</h2>
+            <p>Visualize your multi-generational wealth trajectory with precision modeling.</p>
           </div>
-          <div className="router-grid">
-            {routingBuckets.map((bucket) => (
-              <article key={bucket.label} className="router-card">
-                <p className="router-card__label">{bucket.label}</p>
-                <p className="router-card__example">{bucket.example}</p>
+
+          <div className="forecast-grid">
+            <div className="forecast-controls">
+              <div className="forecast-control">
+                <div className="forecast-control__top">
+                  <label>Capital Commitment / Month</label>
+                  <strong>₹75,000</strong>
+                </div>
+                <input type="range" min="5000" max="1000000" value="75000" readOnly />
+              </div>
+              <div className="forecast-control">
+                <div className="forecast-control__top">
+                  <label>Target Alpha (p.a)</label>
+                  <strong>15%</strong>
+                </div>
+                <input type="range" min="5" max="30" value="15" readOnly />
+              </div>
+              <div className="forecast-control">
+                <div className="forecast-control__top">
+                  <label>Horizon (Years)</label>
+                  <strong>15 Years</strong>
+                </div>
+                <input type="range" min="1" max="50" value="15" readOnly />
+              </div>
+            </div>
+
+            <div className="forecast-side">
+              <div className="forecast-card">
+                <div className="forecast-circle">
+                  <svg viewBox="0 0 36 36">
+                    <circle cx="18" cy="18" r="15.915" />
+                    <circle className="progress" cx="18" cy="18" r="15.915" />
+                  </svg>
+                  <div className="forecast-circle__text">
+                    <span>Projected Corpus</span>
+                    <strong>₹5.08 Cr</strong>
+                  </div>
+                </div>
+                <div className="forecast-card__stats">
+                  <div>
+                    <span>Principal</span>
+                    <strong>₹1.35 Cr</strong>
+                  </div>
+                  <div>
+                    <span>Compound Growth</span>
+                    <strong>₹3.73 Cr</strong>
+                  </div>
+                </div>
+              </div>
+              <button type="button" className="gold-button execute-button">
+                Execute Strategy
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="section section--features">
+          <div className="feature-grid">
+            {features.map((item, index) => (
+              <article
+                className={`feature-card reveal ${index === 1 ? "reveal-delay-1" : ""} ${
+                  index === 2 ? "reveal-delay-2" : ""
+                }`}
+                key={item.title}
+              >
+                <div className="icon-badge">
+                  <span className="material-symbols-outlined">{item.icon}</span>
+                </div>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
               </article>
             ))}
           </div>
         </section>
       </main>
 
-      <div className="chat-layer">
-        {!chatOpen ? <div className="chat-bubble-hint">Hi, How can i help !</div> : null}
+      <footer className="footer">
+        <div className="footer-grid">
+          <div className="footer-brand">
+            <div className="brand">
+              IND<span>Money</span>
+            </div>
+            <p>
+              © 2024 INDMoney Private Limited. Licensed by SEBI as an Investment Advisor. Our
+              sovereign framework ensures your wealth is managed with the utmost integrity and
+              precision.
+            </p>
+            <div className="footer-icons">
+              <a href="#!">
+                <span className="material-symbols-outlined">public</span>
+              </a>
+              <a href="#!">
+                <span className="material-symbols-outlined">share</span>
+              </a>
+            </div>
+          </div>
 
-        <aside className={`chat-modal ${chatOpen ? "chat-modal--open" : ""}`}>
-          <div className="chat-modal__header">
+          <div className="footer-links">
             <div>
-              <p className="chat-modal__eyebrow">Facts-only assistant</p>
-              <h3>Official source help</h3>
+              <p className="footer-links__title">Governance</p>
+              {footerGovernance.map((item) => (
+                <a href="#!" key={item}>
+                  {item}
+                </a>
+              ))}
+            </div>
+            <div>
+              <p className="footer-links__title">Ecosystem</p>
+              {footerEcosystem.map((item) => (
+                <a href="#!" key={item}>
+                  {item}
+                </a>
+              ))}
+            </div>
+            <div>
+              <p className="footer-links__title">System</p>
+              {systemLinks.map((item) => (
+                <a href={item.href} key={item.label} target="_blank" rel="noreferrer">
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      <div className="chat-shell">
+        <div className={`chat-window ${chatOpen ? "chat-window--open" : ""}`}>
+          <div className="chat-window__header">
+            <div className="chat-window__identity">
+              <div className="chat-icon">
+                <span className="material-symbols-outlined">clinical_notes</span>
+              </div>
+              <div>
+                <p>Sovereign Assistant</p>
+                <div className="chat-live">
+                  <span />
+                  Neural Node Active
+                </div>
+              </div>
             </div>
             <button
               type="button"
@@ -399,93 +534,95 @@ export default function App() {
             </button>
           </div>
 
-          <div className="chat-modal__quick">
-            {quickQuestions.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                className="quick-chip"
-                onClick={() => handleQuickQuestion(prompt)}
-                disabled={chatLoading}
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-
-          <div className="chat-modal__body" ref={chatBodyRef}>
+          <div className="chat-window__body" ref={chatBodyRef}>
             {messages.map((message) => (
               <div
+                className={`chat-message chat-message--${message.role}`}
                 key={message.id}
-                className={`message message--${message.role}`}
               >
-                <div className={`message__bubble message__bubble--${message.role}`}>
-                  {message.role === "assistant" ? (
-                    <div className="message__topline">
-                      <span className={`status-pill status-pill--${message.status || "success"}`}>
-                        {statusLabel(message.status || "success")}
-                      </span>
-                    </div>
-                  ) : null}
-
+                <div
+                  className={`chat-bubble chat-bubble--${message.role} chat-bubble--${getMessageTone(
+                    message.status,
+                  )}`}
+                >
                   <p>{message.text}</p>
-
-                  {message.role === "assistant" && message.sourceUrl ? (
-                    <div className="message__meta">
-                      {canLink(message.sourceUrl) ? (
-                        <a href={message.sourceUrl} target="_blank" rel="noreferrer">
-                          Source: {message.sourceLabel || getSourceLabel(message.sourceUrl)}
-                        </a>
-                      ) : (
-                        <span>Source unavailable</span>
-                      )}
+                  {message.role === "assistant" && (message.sourceLabel || message.lastUpdated) ? (
+                    <div className="chat-bubble__meta">
+                      {message.sourceLabel ? (
+                        <span>
+                          Source:{" "}
+                          {canLink(message.sourceUrl) ? (
+                            <a href={message.sourceUrl} target="_blank" rel="noreferrer">
+                              {message.sourceLabel}
+                            </a>
+                          ) : (
+                            message.sourceLabel
+                          )}
+                        </span>
+                      ) : null}
                       {message.lastUpdated ? (
-                        <span>Last updated: {message.lastUpdated}</span>
+                        <span>Last updated from sources: {message.lastUpdated}</span>
                       ) : null}
                     </div>
                   ) : null}
                 </div>
+                <span className={`chat-message__stamp chat-message__stamp--${message.role}`}>
+                  {message.stamp}
+                </span>
               </div>
             ))}
 
             {chatLoading ? (
-              <div className="message message--assistant">
-                <div className="message__bubble message__bubble--assistant message__bubble--typing">
-                  <span className="typing-dot" />
-                  <span className="typing-dot" />
-                  <span className="typing-dot" />
+              <div className="chat-message chat-message--assistant">
+                <div className="chat-bubble chat-bubble--assistant chat-bubble--typing">
+                  <span />
+                  <span />
+                  <span />
                 </div>
               </div>
             ) : null}
+
+            <div className="chat-quick-actions">
+          {quickActions.map((item) => (
+              <button
+                type="button"
+                  key={item}
+                  onClick={() => handleQuickAction(item)}
+                  disabled={chatLoading}
+                >
+                  {item}
+              </button>
+            ))}
+          </div>
           </div>
 
-          <form className="chat-modal__footer" onSubmit={handleChatSubmit}>
-            <label className="sr-only" htmlFor="chat-query">
-              Ask a mutual fund question in chat
-            </label>
-            <input
-              id="chat-query"
-              value={chatInput}
-              onChange={(event) => setChatInput(event.target.value)}
-              placeholder="Ask scheme facts or statement help..."
-              disabled={chatLoading}
-            />
-            <button type="submit" disabled={chatLoading}>
-              <span className="material-symbols-outlined">send</span>
-            </button>
-          </form>
+          <div className="chat-window__footer">
+            <form className="chat-input" onSubmit={handleSubmit}>
+              <input
+                value={chatInput}
+                onChange={(event) => setChatInput(event.target.value)}
+                placeholder="Query the node..."
+                disabled={chatLoading}
+              />
+              <button type="submit" disabled={chatLoading} aria-label="Send query">
+                <span className="material-symbols-outlined">send</span>
+              </button>
+            </form>
+            <p>Empirical Data Only • No Financial Advice Provided</p>
+          </div>
+        </div>
 
-          <p className="chat-modal__disclaimer">Facts-only. No investment advice.</p>
-        </aside>
-
-        <button
-          type="button"
-          className="chat-fab"
-          onClick={() => setChatOpen((current) => !current)}
-          aria-label="Open assistant"
-        >
-          <span className="material-symbols-outlined">forum</span>
-        </button>
+        <div className="chat-fab-row">
+          <div className="chat-pill">Intelligence Online</div>
+          <button
+            type="button"
+            className="chat-fab"
+            onClick={() => setChatOpen((current) => !current)}
+            aria-label="Open assistant"
+          >
+            <span className="material-symbols-outlined">bubble_chart</span>
+          </button>
+        </div>
       </div>
     </div>
   );

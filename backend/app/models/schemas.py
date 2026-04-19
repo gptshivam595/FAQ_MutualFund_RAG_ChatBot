@@ -23,6 +23,11 @@ class AskResponse(BaseModel):
     source_label: str
     source_url: str
     last_updated: str
+    suggested_questions: list[str] = []
+
+
+class SuggestionResponse(BaseModel):
+    questions: list[str]
 
 
 class HealthResponse(BaseModel):

@@ -8,3 +8,5 @@ faiss_index/
 secrets.toml
 frontend/node_modules/
 frontend/dist/
+**/.env
+backend/.env

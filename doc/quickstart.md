@@ -5,8 +5,9 @@
 1. `cd backend`
 2. Create and activate a virtual environment
 3. `pip install -r requirements.txt`
-4. Optionally set `ALLOWED_ORIGINS`
-5. Run `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
+4. Optionally create `.env` with `OPENAI_API_KEY=...`
+5. Optionally set `ALLOWED_ORIGINS`
+6. Run `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
 
 ## Frontend
 
