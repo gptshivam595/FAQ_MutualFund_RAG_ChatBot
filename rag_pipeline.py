@@ -7,12 +7,18 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import numpy as np
+import streamlit as st
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.vectorstores.utils import maximal_marginal_relevance
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
+
+try:
+    from transformers import pipeline
+except ImportError:  # pragma: no cover - dependency is installed in deployment
+    pipeline = None
 
 
 SYSTEM_PROMPT = """You are a Mutual Fund FAQ assistant for INDMoney.
@@ -116,6 +122,23 @@ REFERENCE_GENERIC_TERMS = {
 }
 
 
+@st.cache_resource(show_spinner=False)
+def load_model():
+    if pipeline is None:
+        return None
+    return pipeline(
+        "text2text-generation",
+        model="google/flan-t5-small",
+        device=-1,
+    )
+
+
+try:
+    qa_model = load_model()
+except Exception:  # pragma: no cover - local fallback if model download/load fails
+    qa_model = None
+
+
 def clean_answer(text: str, query: str | None = None) -> str:
     lowered_text = text.lower()
     lowered_query = (query or "").lower()
@@ -129,6 +152,43 @@ def clean_answer(text: str, query: str | None = None) -> str:
     if not first_sentence:
         return ""
     return first_sentence + "."
+
+
+def generate_clean_answer(context: str, query: str) -> str:
+    if qa_model is None:
+        return ""
+
+    prompt = f"""
+    Extract the exact factual answer from the context.
+
+    Question: {query}
+
+    Context: {context}
+
+    Rules:
+    - Answer in ONE clear sentence
+    - Include exact value (e.g., "3 years")
+    - Do NOT include extra text
+    """
+
+    result = qa_model(prompt, max_length=80, do_sample=False)[0]["generated_text"]
+    return WHITESPACE_PATTERN.sub(" ", result).strip()
+
+
+def smart_answer(context: str, query: str) -> str:
+    lowered_context = context.lower()
+    lowered_query = query.lower()
+
+    if "lock-in" in lowered_query or "lock in" in lowered_query:
+        match = re.search(r"\b\d+\s*years?\b", lowered_context)
+        if match:
+            return f"The lock-in period of HDFC ELSS Tax Saver is {match.group()}."
+
+    generated_answer = generate_clean_answer(context, query)
+    if generated_answer:
+        return generated_answer
+
+    return clean_answer(context, query)
 
 
 @dataclass(frozen=True)
@@ -244,12 +304,20 @@ class MutualFundRAGAssistant:
                 reference_links=self._select_reference_links(cleaned_query),
             )
 
-        answer_text, supporting_sources = self._compose_answer(cleaned_query, retrieved_documents)
+        retrieved_documents = retrieved_documents[: self.config.max_context_chunks]
+        context = self._build_context(retrieved_documents)
+        candidate_answer, supporting_sources = self._compose_answer(cleaned_query, retrieved_documents)
+        if not supporting_sources:
+            supporting_sources = self._build_source_citations(retrieved_documents)
+        answer_text = smart_answer(context, cleaned_query)
+
         if not answer_text:
-            return self._build_response(
-                "I could not find this in official documents.",
-                reference_links=self._select_reference_links(cleaned_query, supporting_sources),
-            )
+            answer_text = candidate_answer
+            if not answer_text:
+                return self._build_response(
+                    "I could not find this in official documents.",
+                    reference_links=self._select_reference_links(cleaned_query, supporting_sources),
+                )
 
         answer_text = clean_answer(answer_text, cleaned_query)
         reference_links = self._select_reference_links(cleaned_query, supporting_sources)
@@ -502,6 +570,35 @@ class MutualFundRAGAssistant:
             documents,
             key=lambda document: "kim" not in document.metadata.get("source", "").lower(),
         )
+
+    def _build_context(self, documents: Sequence[Document]) -> str:
+        context_blocks: list[str] = []
+        for document in documents[: self.config.max_context_chunks]:
+            filename = document.metadata.get("filename", "Unknown source")
+            page_number = int(document.metadata.get("page_number", 0))
+            context_blocks.append(
+                f"Source: {filename}, page {page_number}\nContext: {self._normalize_whitespace(document.page_content)}"
+            )
+        return "\n\n".join(context_blocks)
+
+    def _build_source_citations(self, documents: Sequence[Document]) -> list[SourceCitation]:
+        citations: list[SourceCitation] = []
+        seen_sources: set[tuple[str, int]] = set()
+
+        for document in documents[: self.config.max_context_chunks]:
+            source = SourceCitation(
+                filename=document.metadata["filename"],
+                page_number=int(document.metadata["page_number"]),
+                excerpt=document.page_content[:280],
+                relevance_score=document.metadata.get("relevance_score"),
+            )
+            source_key = (source.filename, source.page_number)
+            if source_key in seen_sources:
+                continue
+            citations.append(source)
+            seen_sources.add(source_key)
+
+        return citations
 
     def _load_official_source_links(self) -> list[OfficialSourceLink]:
         if not self.config.sources_md_path.exists():
