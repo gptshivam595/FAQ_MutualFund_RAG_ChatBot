@@ -803,17 +803,23 @@ a {
 
 .chat-shell {
   position: fixed;
-  right: 2rem;
-  bottom: 2rem;
-  z-index: 100;
+  top: 8.5rem;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 2147483000;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   align-items: flex-end;
   gap: 1rem;
+  pointer-events: none;
 }
 
 .chat-window {
-  width: 400px;
+  width: min(400px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 10rem);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border-radius: 2rem;
   background: rgba(24, 24, 23, 0.88);
@@ -825,6 +831,7 @@ a {
   opacity: 0;
   visibility: hidden;
   transform: scale(0.98) translateY(10px);
+  pointer-events: auto;
 }
 
 .chat-window--open {
@@ -841,6 +848,7 @@ a {
   padding: 1.5rem;
   background: rgba(45, 45, 44, 0.38);
   border-bottom: 1px solid rgba(212, 175, 55, 0.08);
+  flex-shrink: 0;
 }
 
 .chat-window__identity {
@@ -903,10 +911,12 @@ a {
 }
 
 .chat-window__body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 1.5rem;
-  max-height: 400px;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.18);
+  overscroll-behavior: contain;
 }
 
 .chat-message {
@@ -1033,6 +1043,7 @@ a {
   padding: 1.4rem 1.5rem 1.3rem;
   background: rgba(45, 45, 44, 0.34);
   border-top: 1px solid rgba(212, 175, 55, 0.08);
+  flex-shrink: 0;
 }
 
 .chat-input {
@@ -1083,6 +1094,7 @@ a {
   display: flex;
   align-items: center;
   gap: 1rem;
+  pointer-events: auto;
 }
 
 .chat-pill {
@@ -1176,7 +1188,9 @@ a {
 
 @media (max-width: 1400px) {
   .chat-shell {
+    top: 8rem;
     right: 1rem;
+    bottom: 1rem;
   }
 
   .hero-grid {
@@ -1220,18 +1234,8 @@ a {
     justify-self: flex-start;
   }
 
-  .chat-shell {
-    position: static;
-    padding: 0 2.8rem 3rem;
-    align-items: stretch;
-  }
-
   .chat-window {
-    width: 100%;
-    max-width: none;
-    opacity: 1;
-    visibility: visible;
-    transform: none;
+    width: min(400px, calc(100vw - 2rem));
   }
 
   .chat-fab-row {
@@ -1247,8 +1251,7 @@ a {
   .nav-bar,
   .hero,
   .section,
-  .footer,
-  .chat-shell {
+  .footer {
     padding-left: 1rem;
     padding-right: 1rem;
   }
@@ -1318,6 +1321,19 @@ a {
 
   .chat-fab-row {
     gap: 0.7rem;
+  }
+
+  .chat-shell {
+    top: 7.4rem;
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    align-items: stretch;
+  }
+
+  .chat-window {
+    width: 100%;
+    max-height: calc(100dvh - 9.2rem);
   }
 
   .chat-pill {

@@ -517,7 +517,7 @@ export default function App() {
                 <span className="material-symbols-outlined">clinical_notes</span>
               </div>
               <div>
-                <p>Sovereign Assistant</p>
+                <p>Coco</p>
                 <div className="chat-live">
                   <span />
                   Neural Node Active
