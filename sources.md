@@ -2,10 +2,10 @@
 
 ## AMC (HDFC Mutual Fund Official)
 
-* https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund
-* https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver
-* https://www.hdfcfund.com/explore/mutual-funds/hdfc-top-100-fund
-* https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund
+* https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct
+* https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct
+* https://www.hdfcfund.com/explore/mutual-funds/hdfc-top-100-fund/direct
+* https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct
 * https://www.hdfcfund.com/statutory-disclosures
 
 ## Factsheets & Documents
@@ -43,4 +43,6 @@
 
 ---
 
-**Note:** All answers in the chatbot are derived strictly from official AMC documents, SEBI, and AMFI sources. No third-party blogs or unofficial sources are used.
+**Note:** All answers in the chatbot are derived strictly from official AMC 
+documents, SEBI, and AMFI sources. No third-party blogs or 
+unofficial sources are used.
