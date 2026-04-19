@@ -1,6 +1,10 @@
 :root {
   color-scheme: dark;
   font-family: "Inter", sans-serif;
+  --type-h1: clamp(2rem, 5vw, 4rem);
+  --type-h2: clamp(1.5rem, 3.5vw, 2.5rem);
+  --type-h3: clamp(1.25rem, 2.5vw, 2rem);
+  --type-body: 1rem;
   --bg: #080808;
   --surface: #0d0d0d;
   --surface-card: #151514;
@@ -33,6 +37,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Inter", sans-serif;
+  font-size: var(--type-body);
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -225,7 +231,7 @@ a {
 .section,
 .footer-grid {
   position: relative;
-  width: min(1400px, 100%);
+  width: min(1200px, 100%);
   margin: 0 auto;
 }
 
@@ -267,8 +273,8 @@ a {
 
 .hero-copy h1 {
   margin: 2.4rem 0 1.6rem;
-  font-size: clamp(4rem, 7vw, 7.6rem);
-  line-height: 0.92;
+  font-size: var(--type-h1);
+  line-height: 1.1;
   letter-spacing: -0.11em;
   font-weight: 900;
 }
@@ -281,7 +287,7 @@ a {
   max-width: 39rem;
   margin: 0 0 2.4rem;
   color: var(--muted);
-  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  font-size: var(--type-body);
   line-height: 1.65;
   font-weight: 300;
 }
@@ -345,7 +351,8 @@ a {
 
 .hero-card__header h2 {
   margin: 0.5rem 0 0;
-  font-size: 3.4rem;
+  font-size: clamp(1.75rem, 4vw, 3rem);
+  line-height: 1.1;
   font-weight: 900;
   letter-spacing: -0.07em;
 }
@@ -458,7 +465,8 @@ a {
 .section-header h2,
 .section-heading h2 {
   margin: 0;
-  font-size: clamp(3rem, 6vw, 5rem);
+  font-size: var(--type-h2);
+  line-height: 1.15;
   font-weight: 900;
   letter-spacing: -0.09em;
 }
@@ -468,7 +476,7 @@ a {
 .feature-card p,
 .footer-brand p {
   color: var(--muted);
-  font-size: 1.1rem;
+  font-size: var(--type-body);
   line-height: 1.8;
 }
 
@@ -525,19 +533,20 @@ a {
 .strategy-row__fund p,
 .feature-card h3 {
   margin: 0;
-  font-size: 2rem;
+  font-size: var(--type-h3);
+  line-height: 1.15;
   font-weight: 900;
   letter-spacing: -0.05em;
 }
 
 .strategy-row__fund span {
   color: var(--muted);
-  font-size: 1.2rem;
+  font-size: var(--type-body);
 }
 
 .strategy-row__cagr {
   color: #42e58c;
-  font-size: 1.8rem;
+  font-size: clamp(1.125rem, 2.25vw, 1.5rem);
   font-weight: 900;
 }
 
@@ -564,7 +573,7 @@ a {
 
 .strategy-row__aum {
   color: var(--muted);
-  font-size: 1.7rem;
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
 }
 
 .deploy-link {
@@ -626,7 +635,8 @@ a {
 
 .forecast-control__top strong {
   color: var(--gold);
-  font-size: 3rem;
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  line-height: 1.1;
   font-weight: 900;
   letter-spacing: -0.06em;
 }
@@ -698,7 +708,8 @@ a {
 
 .forecast-circle__text strong {
   margin-top: 0.9rem;
-  font-size: 4rem;
+  font-size: clamp(1.9rem, 4.5vw, 3.25rem);
+  line-height: 1.1;
   font-weight: 900;
   letter-spacing: -0.08em;
 }
@@ -712,7 +723,8 @@ a {
 .forecast-card__stats strong {
   display: block;
   margin-top: 0.55rem;
-  font-size: 2rem;
+  font-size: clamp(1.25rem, 2.5vw, 2rem);
+  line-height: 1.15;
   font-weight: 900;
 }
 
@@ -725,7 +737,7 @@ a {
   width: 100%;
   padding: 2rem;
   border-radius: 2rem;
-  font-size: 1.45rem;
+  font-size: clamp(1rem, 2vw, 1.25rem);
   font-weight: 900;
   letter-spacing: 0.24em;
 }
@@ -742,7 +754,7 @@ a {
 
 .feature-card h3 {
   margin-top: 2rem;
-  font-size: 2.35rem;
+  font-size: var(--type-h3);
 }
 
 .feature-card p {
@@ -796,7 +808,7 @@ a {
   display: block;
   margin-bottom: 1.2rem;
   color: var(--muted);
-  font-size: 1.05rem;
+  font-size: var(--type-body);
 }
 
 .chat-shell {
@@ -1194,10 +1206,6 @@ a {
   .hero-grid {
     gap: 3rem;
   }
-
-  .strategy-row__fund p {
-    font-size: 1.6rem;
-  }
 }
 
 @media (max-width: 1200px) {
@@ -1284,7 +1292,7 @@ a {
   }
 
   .hero-copy h1 {
-    font-size: clamp(3.2rem, 20vw, 5rem);
+    font-size: var(--type-h1);
   }
 
   .hero-copy p,
@@ -1292,7 +1300,7 @@ a {
   .section-heading p,
   .feature-card p,
   .footer-brand p {
-    font-size: 1rem;
+    font-size: var(--type-body);
   }
 
   .hero-actions {
@@ -1309,12 +1317,12 @@ a {
   .forecast-circle__text strong,
   .section-header h2,
   .section-heading h2 {
-    font-size: clamp(2.4rem, 12vw, 3.4rem);
+    font-size: var(--type-h2);
   }
 
   .strategy-row__fund p,
   .feature-card h3 {
-    font-size: 1.8rem;
+    font-size: var(--type-h3);
   }
 
   .chat-fab-row {
