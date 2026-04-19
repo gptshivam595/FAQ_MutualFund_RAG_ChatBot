@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import numpy as np
+import openai
 import streamlit as st
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
@@ -17,14 +18,12 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 
 try:
-    import openai
-except ImportError:  # pragma: no cover - formatter gracefully falls back when SDK is unavailable
-    openai = None
-
-try:
     from transformers import pipeline
 except ImportError:  # pragma: no cover - dependency is installed in deployment
     pipeline = None
+
+
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 
 SYSTEM_PROMPT = """You are a Mutual Fund FAQ assistant for INDMoney.
@@ -126,36 +125,6 @@ REFERENCE_GENERIC_TERMS = {
     "source",
     "sources",
 }
-DEFAULT_MODEL = "gpt-4o-mini"
-FORMATTER_SYSTEM_PROMPT = (
-    "You are a formatting assistant. You will receive a factual answer extracted "
-    "from official mutual fund documents. Your job is ONLY to clean and present it "
-    "in 1-2 sentences. Do NOT add any information, advice, or explanation not "
-    "already present. If the answer is empty or unclear, return exactly: "
-    "'This information is not available in the current documents.'"
-)
-
-
-def _get_openai_api_key() -> str | None:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if api_key:
-        return api_key
-
-    try:
-        secret_value = st.secrets.get("OPENAI_API_KEY")
-    except Exception:
-        secret_value = None
-
-    if secret_value:
-        return str(secret_value)
-    return None
-
-
-client = (
-    openai.OpenAI(api_key=_get_openai_api_key())
-    if openai is not None and _get_openai_api_key()
-    else None
-)
 
 
 @st.cache_resource(show_spinner=False)
@@ -211,32 +180,45 @@ def generate_clean_answer(context: str, query: str) -> str:
     return WHITESPACE_PATTERN.sub(" ", result).strip()
 
 
-def format_answer_with_gpt(raw_answer: str, query: str) -> str:
-    if client is None:
-        return raw_answer
-
+def format_with_gpt(raw_answer, query):
+    """
+    Takes the raw extracted answer from smart_answer() and
+    formats it cleanly using GPT-4o-mini.
+    Never generates new facts - only cleans presentation.
+    """
     try:
         response = client.chat.completions.create(
-            model=DEFAULT_MODEL,
-            messages=[
-                {"role": "system", "content": FORMATTER_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        f"Raw answer: {raw_answer}\n"
-                        f"Query: {query}\n"
-                        "Format this into a clean 1-2 sentence response."
-                    ),
-                },
-            ],
+            model="gpt-4o-mini",
             max_tokens=100,
             temperature=0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a formatting assistant for a mutual fund FAQ chatbot. "
+                        "You will receive a raw factual answer extracted from official documents. "
+                        "Your ONLY job is to present it as 1-2 clean, professional sentences. "
+                        "Do NOT add any new information, advice, opinions, or explanations. "
+                        "Do NOT say 'Based on documents' or add any preamble. "
+                        "If the raw answer is already clean, return it as-is. "
+                        "If the raw answer is empty or unclear, return exactly: "
+                        "'This information is not available in the current documents.'"
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"User query: {query}\nRaw answer: {raw_answer}\n\nFormat this into a clean 1-2 sentence response."
+                }
+            ]
         )
-    except Exception:
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        # If API fails for any reason, return raw answer unchanged
         return raw_answer
 
-    formatted_answer = response.choices[0].message.content or ""
-    return WHITESPACE_PATTERN.sub(" ", formatted_answer).strip() or raw_answer
+
+def format_answer_with_gpt(raw_answer: str, query: str) -> str:
+    return format_with_gpt(raw_answer, query)
 
 
 def extract_relevant_context(context: str, query: str) -> str:
@@ -436,13 +418,10 @@ class MutualFundRAGAssistant:
                 reference_links=self._select_reference_links(cleaned_query, supporting_sources),
             )
 
-        if "lock" in cleaned_query.lower() and "elss" in cleaned_query.lower():
-            answer_text = raw_answer
-        else:
-            answer_text = format_answer_with_gpt(raw_answer, cleaned_query)
+        final_answer = format_with_gpt(raw_answer, cleaned_query)
 
         reference_links = self._select_reference_links(cleaned_query, supporting_sources)
-        return self._build_response(answer_text, supporting_sources, reference_links)
+        return self._build_response(final_answer, supporting_sources, reference_links)
 
     def retrieve(self, query: str, force_rebuild: bool = False) -> list[Document]:
         vector_store = self._get_vector_store(force_rebuild=force_rebuild)
