@@ -195,10 +195,27 @@ def extract_relevant_context(context: str, query: str) -> str:
 
 
 def smart_answer(context: str, query: str) -> str:
-    if "lock" in query.lower():
+    q = query.lower()
+
+    if "lock" in q:
         match = re.search(r"\b\d+\s*years?\b", context.lower())
         if match:
             return f"The lock-in period of HDFC ELSS Tax Saver is {match.group()}."
+
+    if "expense" in q or "ter" in q:
+        match = re.search(r"\b\d+(?:\.\d+)?\s*%", context)
+        if match:
+            return f"The expense ratio is approximately {match.group()}."
+
+    if "benchmark" in q:
+        for line in context.split("\n"):
+            if "index" in line.lower():
+                return line.strip()
+
+    if "sip" in q or "minimum" in q:
+        match = re.search(r"₹?\s?\d+", context)
+        if match:
+            return f"The minimum investment starts from {match.group().strip()}."
 
     generated_answer = generate_clean_answer(context, query)
     if generated_answer:
