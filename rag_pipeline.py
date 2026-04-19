@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -342,6 +343,7 @@ class RAGConfig:
     data_dir: Path = Path("data")
     index_dir: Path = Path("faiss_index")
     manifest_path: Path = Path("faiss_index/manifest.json")
+    index_meta_path: Path = Path("faiss_index/index_meta.json")
     sources_md_path: Path = Path("sources.md")
     chunk_size: int = 400
     chunk_overlap: int = 150
@@ -475,26 +477,45 @@ class MutualFundRAGAssistant:
         return prioritized_fallback_documents[: self.config.max_context_chunks]
 
     def build_index(self, force_rebuild: bool = False) -> int:
-        documents = self._load_documents()
-        if not documents:
+        pdf_paths = self._eligible_pdf_paths()
+        if not pdf_paths:
             raise FileNotFoundError(
                 "No eligible PDFs were found in data/. Add the official HDFC Mutual Fund PDFs and try again."
             )
 
-        should_rebuild = force_rebuild or self._index_is_stale()
-        if not should_rebuild and self._vector_store is None:
-            self._vector_store = FAISS.load_local(
-                str(self.config.index_dir),
-                self._embeddings,
-                allow_dangerous_deserialization=True,
-            )
-            return len(documents)
+        data_changed = self._index_is_stale(pdf_paths=pdf_paths)
+        should_rebuild = force_rebuild or data_changed
+        if not should_rebuild:
+            if self._vector_store is None:
+                try:
+                    self._vector_store = FAISS.load_local(
+                        str(self.config.index_dir),
+                        self._embeddings,
+                        allow_dangerous_deserialization=True,
+                    )
+                    print("FAISS loaded")
+                except Exception:
+                    print("Rebuilding index due to corrupted FAISS index")
+                    should_rebuild = True
+            if not should_rebuild:
+                return self._stored_document_count() or len(pdf_paths)
 
+        if force_rebuild:
+            print("Rebuilding index due to manual rebuild request")
+        elif data_changed:
+            print("Rebuilding index due to data change")
+
+        current_hash = self._compute_pdf_hash(pdf_paths)
+        documents = self._load_documents(pdf_paths)
         chunks = self._chunk_documents(documents)
         self._vector_store = FAISS.from_documents(chunks, self._embeddings)
         self._vector_store.save_local(str(self.config.index_dir))
         self.config.manifest_path.write_text(
             json.dumps(self._build_manifest(), indent=2),
+            encoding="utf-8",
+        )
+        self.config.index_meta_path.write_text(
+            json.dumps(self._build_index_metadata(current_hash, pdf_paths, len(documents)), indent=2),
             encoding="utf-8",
         )
         return len(documents)
@@ -522,7 +543,7 @@ class MutualFundRAGAssistant:
         )
 
     def _get_vector_store(self, force_rebuild: bool = False) -> FAISS:
-        if self._vector_store is not None and not force_rebuild:
+        if self._vector_store is not None and not force_rebuild and not self._index_is_stale():
             return self._vector_store
 
         self.build_index(force_rebuild=force_rebuild)
@@ -554,9 +575,9 @@ class MutualFundRAGAssistant:
                 eligible_paths.append(pdf_path)
         return eligible_paths
 
-    def _load_documents(self) -> list[Document]:
+    def _load_documents(self, pdf_paths: Sequence[Path] | None = None) -> list[Document]:
         page_documents: list[Document] = []
-        for pdf_path in self._eligible_pdf_paths():
+        for pdf_path in pdf_paths or self._eligible_pdf_paths():
             loader = PyPDFLoader(str(pdf_path))
             for page in loader.load():
                 content = self._normalize_whitespace(page.page_content)
@@ -586,32 +607,87 @@ class MutualFundRAGAssistant:
             chunked_documents.append(Document(page_content=document.page_content, metadata=metadata))
         return chunked_documents
 
-    def _build_manifest(self) -> list[dict[str, str | int]]:
+    def _build_manifest(self, pdf_paths: Sequence[Path] | None = None) -> list[dict[str, str | int]]:
         manifest: list[dict[str, str | int]] = []
-        for pdf_path in self._eligible_pdf_paths():
+        for pdf_path in pdf_paths or self._eligible_pdf_paths():
             stat = pdf_path.stat()
             manifest.append(
                 {
                     "name": pdf_path.name,
                     "size": stat.st_size,
-                    "modified": int(stat.st_mtime),
+                    "modified": stat.st_mtime_ns,
                 }
             )
         return manifest
 
-    def _index_is_stale(self) -> bool:
+    def _build_index_metadata(
+        self,
+        pdf_hash: str,
+        pdf_paths: Sequence[Path],
+        document_count: int,
+    ) -> dict[str, str | int | list[dict[str, str | int]]]:
+        return {
+            "pdf_hash": pdf_hash,
+            "pdf_count": len(pdf_paths),
+            "document_count": document_count,
+            "files": self._build_manifest(pdf_paths),
+        }
+
+    def _read_index_metadata(self) -> dict[str, object] | None:
+        try:
+            metadata = json.loads(self.config.index_meta_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+        return metadata if isinstance(metadata, dict) else None
+
+    def _stored_document_count(self) -> int | None:
+        metadata = self._read_index_metadata()
+        if metadata is None:
+            return None
+
+        document_count = metadata.get("document_count")
+        return document_count if isinstance(document_count, int) else None
+
+    def _compute_pdf_hash(self, pdf_paths: Sequence[Path]) -> str:
+        digest = hashlib.sha256()
+        for pdf_path in sorted(pdf_paths, key=lambda path: path.name.lower()):
+            digest.update(pdf_path.name.encode("utf-8"))
+            with pdf_path.open("rb") as file_handle:
+                while True:
+                    chunk = file_handle.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+        return digest.hexdigest()
+
+    def _index_is_stale(
+        self,
+        current_hash: str | None = None,
+        pdf_paths: Sequence[Path] | None = None,
+    ) -> bool:
         index_file = self.config.index_dir / "index.faiss"
         store_file = self.config.index_dir / "index.pkl"
-        if not index_file.exists() or not store_file.exists() or not self.config.manifest_path.exists():
+        if not index_file.exists() or not store_file.exists() or not self.config.index_meta_path.exists():
             return True
 
+        current_pdf_paths = list(pdf_paths or self._eligible_pdf_paths())
         try:
-            current_manifest = self._build_manifest()
-            stored_manifest = json.loads(self.config.manifest_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            stored_metadata = self._read_index_metadata()
+            if stored_metadata is None:
+                return True
+            pdf_hash = stored_metadata.get("pdf_hash")
+            if not isinstance(pdf_hash, str) or not pdf_hash:
+                return True
+            stored_manifest = stored_metadata.get("files")
+            current_manifest = self._build_manifest(current_pdf_paths)
+            if stored_manifest == current_manifest:
+                return False
+            if current_hash is None:
+                current_hash = self._compute_pdf_hash(current_pdf_paths)
+        except OSError:
             return True
 
-        return current_manifest != stored_manifest
+        return current_hash != pdf_hash
 
     def _compose_answer(
         self,

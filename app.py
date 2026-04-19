@@ -76,6 +76,10 @@ def render_response(answer: str, source: str, last_updated: str, excerpts: list[
 
 def main() -> None:
     assistant = get_assistant()
+    try:
+        assistant.build_index()
+    except FileNotFoundError:
+        pass
     render_sidebar(assistant)
 
     st.title("INDMoney \u2013 Mutual Fund FAQ Assistant")
