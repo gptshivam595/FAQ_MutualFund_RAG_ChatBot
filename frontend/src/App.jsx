@@ -244,7 +244,7 @@ export default function App() {
 
       <nav className="nav-bar">
         <div className="brand">
-          IND<span>Money</span>
+          IND<span>money</span>
         </div>
         <div className="nav-links">
           {navItems.map((item) => (
@@ -458,7 +458,7 @@ export default function App() {
         <div className="footer-grid">
           <div className="footer-brand">
             <div className="brand">
-              IND<span>Money</span>
+              IND<span>money</span>
             </div>
             <p>
               © 2024 INDMoney Private Limited. Licensed by SEBI as an Investment Advisor. Our

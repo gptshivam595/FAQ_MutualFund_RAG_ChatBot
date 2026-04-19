@@ -134,14 +134,12 @@ a {
 .brand {
   font-size: 2.1rem;
   font-weight: 900;
-  font-style: italic;
   letter-spacing: -0.08em;
   line-height: 1;
 }
 
 .brand span {
   color: var(--gold);
-  font-style: normal;
 }
 
 .nav-links {
