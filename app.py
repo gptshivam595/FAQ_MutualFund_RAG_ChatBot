@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 
 import streamlit as st
 
-from rag_pipeline import MutualFundRAGAssistant
+from rag_pipeline import INDEX_PATH, MutualFundRAGAssistant
 
 
 st.set_page_config(
@@ -34,6 +36,8 @@ def render_sidebar(assistant: MutualFundRAGAssistant) -> None:
         if st.button("Rebuild index", use_container_width=True):
             try:
                 with st.spinner("Rebuilding the local FAISS index..."):
+                    if os.path.exists(INDEX_PATH):
+                        shutil.rmtree(INDEX_PATH)
                     assistant.build_index(force_rebuild=True)
             except FileNotFoundError as exc:
                 st.warning(str(exc))
@@ -57,21 +61,39 @@ def render_examples() -> None:
                 queue_example(example)
 
 
-def render_response(answer: str, source: str, last_updated: str, excerpts: list[tuple[str, str]]) -> None:
+def render_response(answer: str, source_documents) -> None:
     response_card = st.container(border=True)
     with response_card:
         st.markdown("**Answer**")
         st.write(answer)
-        st.markdown("**Source**")
-        st.write(source)
-        st.markdown("**Last updated from sources**")
-        st.write(last_updated)
 
-    if excerpts:
-        with st.expander("View retrieved excerpts"):
-            for label, excerpt in excerpts:
-                st.markdown(f"**{label}**")
-                st.write(excerpt)
+        st.markdown("**Source**")
+        urls = [
+            doc.metadata.get("url") or
+            doc.metadata.get("source_url") or
+            doc.metadata.get("link")
+            for doc in source_documents
+        ]
+        urls = [u for u in urls if u and u.startswith("http")]
+        urls = list(dict.fromkeys(urls))
+
+        if urls:
+            for url in urls:
+                st.markdown(url)
+        else:
+            st.markdown("Source URL not available")
+
+        dates = [
+            doc.metadata.get("date") or
+            doc.metadata.get("last_updated") or
+            doc.metadata.get("document_date") or
+            doc.metadata.get("created_at")
+            for doc in source_documents
+        ]
+        dates = [d for d in dates if d]
+        last_updated = dates[0] if dates else "Date not available"
+
+        st.markdown(f"**Last Updated**\n\n{last_updated}")
 
 
 def main() -> None:
@@ -96,9 +118,7 @@ def main() -> None:
             if item["role"] == "assistant":
                 render_response(
                     answer=item["answer"],
-                    source=item["source"],
-                    last_updated=item["last_updated"],
-                    excerpts=item["excerpts"],
+                    source_documents=item.get("source_documents", []),
                 )
             else:
                 st.write(item["content"])
@@ -124,21 +144,17 @@ def main() -> None:
     with st.chat_message("assistant"):
         with st.spinner("Searching official documents..."):
             response = assistant.answer_query(question)
-        excerpts = [(source.display_name, source.excerpt) for source in response.sources]
+        source_documents = response.sources
         render_response(
             answer=response.answer,
-            source=response.source_text,
-            last_updated=response.last_updated,
-            excerpts=excerpts,
+            source_documents=source_documents,
         )
 
     st.session_state.chat_history.append(
         {
             "role": "assistant",
             "answer": response.answer,
-            "source": response.source_text,
-            "last_updated": response.last_updated,
-            "excerpts": excerpts,
+            "source_documents": source_documents,
         }
     )
 

@@ -26,6 +26,8 @@ except ImportError:  # pragma: no cover - dependency is installed in deployment
 
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
+INDEX_PATH = "faiss_index"
+
 
 SYSTEM_PROMPT = """You are a Mutual Fund FAQ assistant for INDMoney.
 
@@ -299,6 +301,7 @@ class SourceCitation:
     page_number: int
     excerpt: str
     relevance_score: float | None = None
+    metadata: dict[str, str] = field(default_factory=dict)
 
     @property
     def display_name(self) -> str:
@@ -368,8 +371,8 @@ class MutualFundRAGAssistant:
         )
         self._vector_store: FAISS | None = None
         self._text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self.config.chunk_size,
-            chunk_overlap=self.config.chunk_overlap,
+            chunk_size=1500,
+            chunk_overlap=100,
         )
         self._official_source_links = self._load_official_source_links()
 
@@ -488,28 +491,25 @@ class MutualFundRAGAssistant:
         if not should_rebuild:
             if self._vector_store is None:
                 try:
+                    print("Loading FAISS index...")
                     self._vector_store = FAISS.load_local(
-                        str(self.config.index_dir),
+                        INDEX_PATH,
                         self._embeddings,
                         allow_dangerous_deserialization=True,
                     )
-                    print("FAISS loaded")
+                    print("Index ready")
                 except Exception:
-                    print("Rebuilding index due to corrupted FAISS index")
                     should_rebuild = True
             if not should_rebuild:
                 return self._stored_document_count() or len(pdf_paths)
 
-        if force_rebuild:
-            print("Rebuilding index due to manual rebuild request")
-        elif data_changed:
-            print("Rebuilding index due to data change")
-
+        print("Building FAISS index...")
         current_hash = self._compute_pdf_hash(pdf_paths)
         documents = self._load_documents(pdf_paths)
         chunks = self._chunk_documents(documents)
         self._vector_store = FAISS.from_documents(chunks, self._embeddings)
-        self._vector_store.save_local(str(self.config.index_dir))
+        self._vector_store.save_local(INDEX_PATH)
+        print("Index ready")
         self.config.manifest_path.write_text(
             json.dumps(self._build_manifest(), indent=2),
             encoding="utf-8",
@@ -579,7 +579,19 @@ class MutualFundRAGAssistant:
         page_documents: list[Document] = []
         for pdf_path in pdf_paths or self._eligible_pdf_paths():
             loader = PyPDFLoader(str(pdf_path))
-            for page in loader.load():
+            docs = loader.load()
+
+            for doc in docs:
+                if "url" not in doc.metadata:
+                    doc.metadata["url"] = doc.metadata.get("source_url", "")
+                if "date" not in doc.metadata:
+                    match = re.search(
+                        r"dated\s([A-Za-z]+\s\d{1,2},\s\d{4})",
+                        doc.metadata.get("source", "")
+                    )
+                    doc.metadata["date"] = match.group(1) if match else ""
+
+            for page in docs:
                 content = self._normalize_whitespace(page.page_content)
                 if not content:
                     continue
@@ -591,6 +603,8 @@ class MutualFundRAGAssistant:
                             "filename": pdf_path.name,
                             "page_number": page_number,
                             "source": pdf_path.name,
+                            "url": page.metadata.get("url", ""),
+                            "date": page.metadata.get("date", ""),
                         },
                     )
                 )
@@ -705,6 +719,10 @@ class MutualFundRAGAssistant:
                 page_number=int(document.metadata["page_number"]),
                 excerpt=document.page_content[:280],
                 relevance_score=document.metadata.get("relevance_score"),
+                metadata={
+                    "url": str(document.metadata.get("url", "")),
+                    "date": str(document.metadata.get("date", "")),
+                },
             )
 
             for unit in self._extract_answer_units(document.page_content):
@@ -767,6 +785,10 @@ class MutualFundRAGAssistant:
                 page_number=int(document.metadata["page_number"]),
                 excerpt=document.page_content[:280],
                 relevance_score=document.metadata.get("relevance_score"),
+                metadata={
+                    "url": str(document.metadata.get("url", "")),
+                    "date": str(document.metadata.get("date", "")),
+                },
             )
             source_key = (source.filename, source.page_number)
             if source_key in seen_sources:
