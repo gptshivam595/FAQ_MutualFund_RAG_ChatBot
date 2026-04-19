@@ -8,3 +8,4 @@ sentence-transformers>=3.4.0,<4.0.0
 numpy>=1.26.0,<3.0.0
 transformers
 torch
+openai
