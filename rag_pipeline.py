@@ -197,6 +197,7 @@ def extract_relevant_context(context: str, query: str) -> str:
 def smart_answer(context: str, query: str) -> str:
     q = query.lower()
 
+    # Rule-based extraction must always run on the full context first.
     if "lock" in q:
         match = re.search(r"\b\d+\s*years?\b", context.lower())
         if match:
@@ -207,21 +208,13 @@ def smart_answer(context: str, query: str) -> str:
         if match:
             return f"The expense ratio is approximately {match.group()}."
 
-    if "benchmark" in q:
-        for line in context.split("\n"):
-            if "index" in line.lower():
-                return line.strip()
-
     if "sip" in q or "minimum" in q:
         match = re.search(r"₹?\s?\d+", context)
         if match:
             return f"The minimum investment starts from {match.group().strip()}."
 
-    generated_answer = generate_clean_answer(context, query)
-    if generated_answer:
-        return generated_answer
-
-    return clean_answer(context, query)
+    filtered_context = extract_relevant_context(context, query)
+    return generate_clean_answer(filtered_context, query)
 
 
 @dataclass(frozen=True)
@@ -340,11 +333,10 @@ class MutualFundRAGAssistant:
         retrieved_documents = retrieved_documents[: self.config.max_context_chunks]
         context_documents = self._select_context_documents(retrieved_documents, cleaned_query)
         context = self._build_context(context_documents)
-        filtered_context = extract_relevant_context(context, cleaned_query)
         candidate_answer, supporting_sources = self._compose_answer(cleaned_query, retrieved_documents)
         if not supporting_sources:
             supporting_sources = self._build_source_citations(context_documents)
-        answer_text = smart_answer(filtered_context, cleaned_query)
+        answer_text = smart_answer(context, cleaned_query)
 
         if not answer_text:
             answer_text = candidate_answer
