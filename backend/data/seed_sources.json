@@ -1,0 +1,176 @@
+{
+  "scheme_facts": {
+    "hdfc_large_cap_fund": {
+      "scheme_name": "HDFC Large Cap Fund",
+      "facts": {
+        "expense_ratio": {
+          "answer": "The direct plan total expense ratio shown for HDFC Large Cap Fund is 0.99%.",
+          "source_label": "HDFC Large Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "exit_load": {
+          "answer": "The exit load is 1.00% if units are redeemed or switched out within 1 year from allotment, and nil after 1 year.",
+          "source_label": "HDFC Large Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct",
+          "last_updated_from_sources": "November 21, 2025"
+        },
+        "minimum_sip": {
+          "answer": "The minimum SIP shown for HDFC Large Cap Fund is Rs. 100.",
+          "source_label": "HDFC Large Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "lock_in": {
+          "answer": "HDFC Large Cap Fund does not show a lock-in period on the official scheme page.",
+          "source_label": "HDFC Large Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "benchmark": {
+          "answer": "The benchmark shown for HDFC Large Cap Fund is NIFTY 100 Total Return Index.",
+          "source_label": "HDFC Large Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "riskometer": {
+          "answer": "The official scheme page shows the riskometer for HDFC Large Cap Fund as Very High.",
+          "source_label": "HDFC Large Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        }
+      }
+    },
+    "hdfc_flexi_cap_fund": {
+      "scheme_name": "HDFC Flexi Cap Fund",
+      "facts": {
+        "expense_ratio": {
+          "answer": "The direct plan total expense ratio shown for HDFC Flexi Cap Fund is 0.71%.",
+          "source_label": "HDFC Flexi Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "exit_load": {
+          "answer": "The exit load is 1.00% if units are redeemed or switched out within 1 year from allotment, and nil after 1 year.",
+          "source_label": "HDFC Flexi Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct",
+          "last_updated_from_sources": "November 21, 2025"
+        },
+        "minimum_sip": {
+          "answer": "The minimum SIP shown for HDFC Flexi Cap Fund is Rs. 100.",
+          "source_label": "HDFC Flexi Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "lock_in": {
+          "answer": "HDFC Flexi Cap Fund does not show a lock-in period on the official scheme page.",
+          "source_label": "HDFC Flexi Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "benchmark": {
+          "answer": "The benchmark shown for HDFC Flexi Cap Fund is NIFTY 500 Total Returns Index.",
+          "source_label": "HDFC Flexi Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "riskometer": {
+          "answer": "The official scheme page shows the riskometer for HDFC Flexi Cap Fund as Very High.",
+          "source_label": "HDFC Flexi Cap Fund official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        }
+      }
+    },
+    "hdfc_elss_tax_saver": {
+      "scheme_name": "HDFC ELSS Tax Saver",
+      "facts": {
+        "expense_ratio": {
+          "answer": "The direct plan total expense ratio shown for HDFC ELSS Tax Saver is 1.10%.",
+          "source_label": "HDFC ELSS Tax Saver official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "exit_load": {
+          "answer": "The official scheme page shows the exit load for HDFC ELSS Tax Saver as nil.",
+          "source_label": "HDFC ELSS Tax Saver official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct",
+          "last_updated_from_sources": "November 21, 2025"
+        },
+        "minimum_sip": {
+          "answer": "The minimum SIP shown for HDFC ELSS Tax Saver is Rs. 500.",
+          "source_label": "HDFC ELSS Tax Saver official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "lock_in": {
+          "answer": "HDFC ELSS Tax Saver has a statutory lock-in period of 3 years.",
+          "source_label": "HDFC ELSS Tax Saver official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "benchmark": {
+          "answer": "The benchmark shown for HDFC ELSS Tax Saver is NIFTY 500 Total Returns Index.",
+          "source_label": "HDFC ELSS Tax Saver official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        },
+        "riskometer": {
+          "answer": "The official scheme page shows the riskometer for HDFC ELSS Tax Saver as Very High.",
+          "source_label": "HDFC ELSS Tax Saver official scheme page",
+          "source_url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct",
+          "last_updated_from_sources": "March 31, 2026"
+        }
+      }
+    }
+  },
+  "service_answers": {
+    "statement_help": {
+      "answer": "To download an account, capital gains, or consolidated statement, use the AMC's official statement request page and follow the supported statement option there.",
+      "source_label": "HDFC Mutual Fund request statement page",
+      "source_url": "https://www.hdfcfund.com/services/additional-info/request-statement",
+      "last_updated_from_sources": "April 19, 2026"
+    },
+    "riskometer_help": {
+      "answer": "SEBI explains the Riskometer as the standard risk-labeling tool for mutual fund schemes, ranging from low risk to very high risk.",
+      "source_label": "SEBI investor education: Understanding the Riskometer",
+      "source_url": "https://investor.sebi.gov.in/riskometer.html",
+      "last_updated_from_sources": "April 19, 2026"
+    }
+  },
+  "refusal_links": {
+    "advice": {
+      "source_label": "SEBI investor education: Understanding Investment Advisors",
+      "source_url": "https://investor.sebi.gov.in/investment_advisor.html",
+      "last_updated_from_sources": "April 19, 2026"
+    },
+    "pii": {
+      "source_label": "HDFC Mutual Fund request statement page",
+      "source_url": "https://www.hdfcfund.com/services/additional-info/request-statement",
+      "last_updated_from_sources": "April 19, 2026"
+    }
+  },
+  "source_index": [
+    {
+      "label": "HDFC Large Cap Fund official scheme page",
+      "url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-large-cap-fund/direct"
+    },
+    {
+      "label": "HDFC Flexi Cap Fund official scheme page",
+      "url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-flexi-cap-fund/direct"
+    },
+    {
+      "label": "HDFC ELSS Tax Saver official scheme page",
+      "url": "https://www.hdfcfund.com/explore/mutual-funds/hdfc-elss-tax-saver/direct"
+    },
+    {
+      "label": "HDFC Mutual Fund request statement page",
+      "url": "https://www.hdfcfund.com/services/additional-info/request-statement"
+    },
+    {
+      "label": "SEBI investor education: Understanding the Riskometer",
+      "url": "https://investor.sebi.gov.in/riskometer.html"
+    }
+  ]
+}
+
