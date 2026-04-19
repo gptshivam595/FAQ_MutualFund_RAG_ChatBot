@@ -16,6 +16,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.vectorstores.utils import maximal_marginal_relevance
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 
 try:
@@ -172,6 +173,21 @@ def load_vectorstore(_assistant, _pdf_paths: tuple[Path, ...], cache_key: tuple[
     _assistant._document_count = len(documents)
     print("Index ready")
     return vectorstore
+
+
+class OpenAIAPIEmbeddings(Embeddings):
+    def __init__(self, model: str = "text-embedding-3-small") -> None:
+        self.model = model
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        response = client.embeddings.create(model=self.model, input=texts)
+        return [item.embedding for item in response.data]
+
+    def embed_query(self, text: str) -> list[float]:
+        response = client.embeddings.create(model=self.model, input=[text])
+        return response.data[0].embedding
 
 
 def clean_answer(text: str, query: str | None = None) -> str:
@@ -392,10 +408,15 @@ class MutualFundRAGAssistant:
         self.config = config or RAGConfig()
         self.config.data_dir.mkdir(parents=True, exist_ok=True)
         self.config.index_dir.mkdir(parents=True, exist_ok=True)
-        self._embeddings = HuggingFaceEmbeddings(
-            model_name=self.config.embeddings_model,
-            encode_kwargs={"normalize_embeddings": True},
-        )
+        try:
+            self._embeddings = HuggingFaceEmbeddings(
+                model_name=self.config.embeddings_model,
+                model_kwargs={"device": "cpu"},
+                encode_kwargs={"normalize_embeddings": True},
+            )
+        except OSError:
+            print("Falling back to OpenAI embeddings...")
+            self._embeddings = OpenAIAPIEmbeddings()
         self._vector_store: FAISS | None = None
         self._text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1500,
