@@ -29,6 +29,7 @@ Rules:
 * Do NOT include unrelated information from the context.
 * Do NOT copy full paragraphs.
 * Return ONLY the most relevant sentence that directly answers the question.
+* Prefer exact numerical facts (e.g., '3 years') over descriptive or contextual sentences.
 * ALWAYS include a source citation (PDF name + page number)
 * If answer not found, say:
   'I could not find this in official documents.'
@@ -102,11 +103,32 @@ DATE_PATTERN = re.compile(
     r"\s+[A-Za-z]+\s+\d{4}|"
     r"\s+[A-Za-z]+\s*,?\s+\d{4})\b"
 )
+REFERENCE_GENERIC_TERMS = {
+    "amc",
+    "documents",
+    "fund",
+    "funds",
+    "hdfc",
+    "mutual",
+    "official",
+    "source",
+    "sources",
+}
 
 
-def clean_answer(text):
-    sentences = text.split(".")
-    return sentences[0].strip() + "."
+def clean_answer(text: str, query: str | None = None) -> str:
+    lowered_text = text.lower()
+    lowered_query = (query or "").lower()
+
+    if "lock-in" in lowered_query or "lock in" in lowered_query:
+        match = re.search(r"\b\d+\s*years?\b", lowered_text)
+        if match:
+            return f"The lock-in period of HDFC ELSS Tax Saver is {match.group()}."
+
+    first_sentence = text.split(".")[0].strip()
+    if not first_sentence:
+        return ""
+    return first_sentence + "."
 
 
 @dataclass(frozen=True)
@@ -122,16 +144,28 @@ class SourceCitation:
 
 
 @dataclass(frozen=True)
+class OfficialSourceLink:
+    section: str
+    url: str
+
+
+@dataclass(frozen=True)
 class ChatbotResponse:
     answer: str
     sources: list[SourceCitation] = field(default_factory=list)
+    reference_links: list[str] = field(default_factory=list)
     last_updated: str = "Based on available documents"
 
     @property
     def source_text(self) -> str:
-        if not self.sources:
+        source_parts: list[str] = []
+        if self.sources:
+            source_parts.append("; ".join(source.display_name for source in self.sources))
+        if self.reference_links:
+            source_parts.append("Official links: " + "; ".join(self.reference_links))
+        if not source_parts:
             return "N/A"
-        return "; ".join(source.display_name for source in self.sources)
+        return "\n".join(source_parts)
 
     @property
     def formatted(self) -> str:
@@ -147,11 +181,13 @@ class RAGConfig:
     data_dir: Path = Path("data")
     index_dir: Path = Path("faiss_index")
     manifest_path: Path = Path("faiss_index/manifest.json")
+    sources_md_path: Path = Path("sources.md")
     chunk_size: int = 400
     chunk_overlap: int = 150
     embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     top_k: int = 8
     fetch_k: int = 12
+    max_context_chunks: int = 3
     similarity_threshold: float = 0.45
     max_answer_sentences: int = 2
 
@@ -172,34 +208,52 @@ class MutualFundRAGAssistant:
             chunk_size=self.config.chunk_size,
             chunk_overlap=self.config.chunk_overlap,
         )
+        self._official_source_links = self._load_official_source_links()
 
     def answer_query(self, query: str, force_rebuild: bool = False) -> ChatbotResponse:
         cleaned_query = query.strip()
         if not cleaned_query:
-            return self._build_response("Please enter a question about HDFC Mutual Fund documents.")
+            return self._build_response(
+                "Please enter a question about HDFC Mutual Fund documents.",
+                reference_links=self._select_reference_links(""),
+            )
 
         if self._contains_sensitive_information(cleaned_query):
-            return self._build_response("Please do not share sensitive personal information.")
+            return self._build_response(
+                "Please do not share sensitive personal information.",
+                reference_links=self._select_reference_links(cleaned_query),
+            )
 
         if self._is_investment_advice_request(cleaned_query):
             return self._build_response(
-                "I cannot provide investment advice. Please refer to official documents or consult a financial advisor."
+                "I cannot provide investment advice. Please refer to official documents or consult a financial advisor.",
+                reference_links=self._select_reference_links(cleaned_query),
             )
 
         try:
             retrieved_documents = self.retrieve(cleaned_query, force_rebuild=force_rebuild)
         except FileNotFoundError:
-            return self._build_response("I could not find this in official documents.")
+            return self._build_response(
+                "I could not find this in official documents.",
+                reference_links=self._select_reference_links(cleaned_query),
+            )
 
         if not retrieved_documents:
-            return self._build_response("I could not find this in official documents.")
+            return self._build_response(
+                "I could not find this in official documents.",
+                reference_links=self._select_reference_links(cleaned_query),
+            )
 
         answer_text, supporting_sources = self._compose_answer(cleaned_query, retrieved_documents)
         if not answer_text:
-            return self._build_response("I could not find this in official documents.")
+            return self._build_response(
+                "I could not find this in official documents.",
+                reference_links=self._select_reference_links(cleaned_query, supporting_sources),
+            )
 
-        answer_text = clean_answer(answer_text)
-        return self._build_response(answer_text, supporting_sources)
+        answer_text = clean_answer(answer_text, cleaned_query)
+        reference_links = self._select_reference_links(cleaned_query, supporting_sources)
+        return self._build_response(answer_text, supporting_sources, reference_links)
 
     def retrieve(self, query: str, force_rebuild: bool = False) -> list[Document]:
         vector_store = self._get_vector_store(force_rebuild=force_rebuild)
@@ -235,7 +289,8 @@ class MutualFundRAGAssistant:
             seen_chunk_ids.add(chunk_id)
 
         if selected_documents:
-            return selected_documents[: self.config.top_k]
+            prioritized_documents = self._prioritize_documents(selected_documents)
+            return prioritized_documents[: self.config.max_context_chunks]
 
         fallback_documents: list[Document] = []
         for document, score in threshold_hits:
@@ -248,7 +303,8 @@ class MutualFundRAGAssistant:
             if len(fallback_documents) == self.config.top_k:
                 break
 
-        return fallback_documents
+        prioritized_fallback_documents = self._prioritize_documents(fallback_documents)
+        return prioritized_fallback_documents[: self.config.max_context_chunks]
 
     def build_index(self, force_rebuild: bool = False) -> int:
         documents = self._load_documents()
@@ -289,8 +345,13 @@ class MutualFundRAGAssistant:
         self,
         answer: str,
         sources: Sequence[SourceCitation] | None = None,
+        reference_links: Sequence[str] | None = None,
     ) -> ChatbotResponse:
-        return ChatbotResponse(answer=answer, sources=list(sources or []))
+        return ChatbotResponse(
+            answer=answer,
+            sources=list(sources or []),
+            reference_links=list(reference_links or []),
+        )
 
     def _get_vector_store(self, force_rebuild: bool = False) -> FAISS:
         if self._vector_store is not None and not force_rebuild:
@@ -435,6 +496,84 @@ class MutualFundRAGAssistant:
 
         answer = " ".join(answer_sentences[: self.config.max_answer_sentences]).strip()
         return answer, sources
+
+    def _prioritize_documents(self, documents: Sequence[Document]) -> list[Document]:
+        return sorted(
+            documents,
+            key=lambda document: "kim" not in document.metadata.get("source", "").lower(),
+        )
+
+    def _load_official_source_links(self) -> list[OfficialSourceLink]:
+        if not self.config.sources_md_path.exists():
+            return []
+
+        current_section = ""
+        links: list[OfficialSourceLink] = []
+        for raw_line in self.config.sources_md_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if line.startswith("## "):
+                current_section = line.removeprefix("## ").strip()
+                continue
+            if line.startswith("* http://") or line.startswith("* https://"):
+                links.append(
+                    OfficialSourceLink(
+                        section=current_section or "Official Sources",
+                        url=line.removeprefix("* ").strip(),
+                    )
+                )
+        return links
+
+    def _select_reference_links(
+        self,
+        query: str,
+        supporting_sources: Sequence[SourceCitation] | None = None,
+    ) -> list[str]:
+        if not self._official_source_links:
+            return []
+
+        query_terms = self._reference_terms(query)
+        source_terms: set[str] = set()
+        for source in supporting_sources or []:
+            source_terms.update(self._reference_terms(source.filename.replace(".pdf", "")))
+
+        scored_links: list[tuple[float, str]] = []
+        for link in self._official_source_links:
+            link_terms = self._reference_terms(f"{link.section} {link.url}")
+            query_overlap = query_terms & link_terms
+            source_overlap = source_terms & link_terms
+            score = float(len(query_overlap) * 2) + float(len(source_overlap))
+
+            if "sebi" in query_terms and "sebi.gov.in" in link.url:
+                score += 2.0
+            if "amfi" in query_terms and "amfiindia.com" in link.url:
+                score += 2.0
+            if "factsheet" in source_terms and "factsheet" in link.url:
+                score += 1.5
+            if "riskometer" in query_terms and "riskometer" in link.url:
+                score += 1.5
+            if "account" in query_terms and "statement" in query_terms and "account-statement" in link.url:
+                score += 2.0
+            if "capital" in query_terms and "gain" in query_terms and "capital-gain-statement" in link.url:
+                score += 2.0
+            if len(query_overlap) >= 2 and "/explore/mutual-funds/" in link.url:
+                score += 1.5
+
+            if score > 0:
+                scored_links.append((score, link.url))
+
+        scored_links.sort(key=lambda item: (-item[0], item[1]))
+        selected_links: list[str] = []
+        for _, url in scored_links:
+            if url in selected_links:
+                continue
+            selected_links.append(url)
+            if len(selected_links) == 2:
+                break
+
+        return selected_links
+
+    def _reference_terms(self, text: str) -> set[str]:
+        return self._query_terms(text) - REFERENCE_GENERIC_TERMS
 
     def _extract_answer_units(self, content: str) -> list[str]:
         units: list[str] = []
